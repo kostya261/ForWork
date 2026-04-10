@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+
+{% block title %}Инвентарь | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-light mb-0">
+            <i class="bi bi-tools me-2"></i>Инвентарь
+        </h2>
+        <a href="{% url 'frontend:inventory_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>Добавить
+        </a>
+    </div>
+
+    <!-- Статистика -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card bg-light">
+                <div class="card-body text-center py-2">
+                    <h5 class="mb-0">{{ stats.total }}</h5>
+                    <small class="text-muted">Всего</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success bg-opacity-10">
+                <div class="card-body text-center py-2">
+                    <h5 class="mb-0 text-success">{{ stats.active }}</h5>
+                    <small class="text-success">Активно</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning bg-opacity-10">
+                <div class="card-body text-center py-2">
+                    <h5 class="mb-0 text-warning">{{ stats.repair }}</h5>
+                    <small class="text-warning">В ремонте</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-secondary bg-opacity-10">
+                <div class="card-body text-center py-2">
+                    <h5 class="mb-0 text-secondary">{{ stats.decommissioned }}</h5>
+                    <small class="text-secondary">Списано</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <select name="status" class="form-select">
+                        <option value="">Все статусы</option>
+                        {% for value, label in status_choices %}
+                            <option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="category" class="form-select">
+                        <option value="">Все категории</option>
+                        {% for cat in categories %}
+                            <option value="{{ cat.id }}" {% if current_filters.category == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <div class="form-check mt-2">
+                        <input type="checkbox" name="my" value="true" class="form-check-input"
+                               {% if current_filters.my == 'true' %}checked{% endif %} id="myItems">
+                        <label class="form-check-label" for="myItems">Закреплён за мной</label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="input-group">
+                        <input type="text" name="search" class="form-control" placeholder="Название, инв. номер..."
+                               value="{{ current_filters.search }}">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
+                        {% if current_filters.status or current_filters.category or current_filters.my or current_filters.search %}
+                            <a href="{% url 'frontend:inventory_list' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Таблица -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 60px;"></th>
+                        <th>Инв. номер</th>
+                        <th>Название</th>
+                        <th>Категория</th>
+                        <th>Статус</th>
+                        <th>Производитель</th>
+                        <th>Ответственный</th>
+                        <th>Отдел</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr class="cursor-pointer" onclick="window.location='{% url 'frontend:inventory_detail' item.pk %}'">
+                        <td style="width: 60px;" onclick="event.stopPropagation()">
+                            {% with img=item.get_first_image %}
+                                {% if img and img.image %}
+                                    <img src="{{ img.image.url }}" class="rounded" style="width: 45px; height: 45px; object-fit: cover;">
+                                {% else %}
+                                    <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
+                                        <i class="bi bi-tools text-muted fs-5"></i>
+                                    </div>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td>{{ item.inventory_number }}</td>
+                        <td>
+                            <div class="fw-medium">{{ item.name }}</div>
+                            <small class="text-muted">{{ item.serial_number|default:"—" }}</small>
+                        </td>
+                        <td>
+                            {% if item.category %}
+                                <small class="text-muted">{{ item.get_category_path }}</small>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ item.status }}">{{ item.get_status_display }}</span>
+                        </td>
+                        <td>{{ item.manufacturer.name|default:"—" }}</td>
+                        <td>{{ item.responsible.get_full_name|default:"—" }}</td>
+                        <td>{{ item.department.name|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="bi bi-tools fs-1"></i>
+                            <p class="mt-2">Инвентарь не найден</p>
+                            <a href="{% url 'frontend:inventory_create' %}" class="btn btn-sm btn-primary">Добавить инвентарь</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Пагинация -->
+    {% if items.paginator.num_pages > 1 %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if items.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page={{ items.previous_page_number }}{% for key,val in current_filters.items %}{% if val %}&{{ key }}={{ val }}{% endif %}{% endfor %}"><i class="bi bi-chevron-left"></i></a></li>
+            {% endif %}
+
+            {% for num in items.paginator.page_range %}
+                {% if num == items.number %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% elif num > items.number|add:'-3' and num < items.number|add:'3' %}
+                    <li class="page-item"><a class="page-link" href="?page={{ num }}{% for key,val in current_filters.items %}{% if val %}&{{ key }}={{ val }}{% endif %}{% endfor %}">{{ num }}</a></li>
+                {% endif %}
+            {% endfor %}
+
+            {% if items.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ items.next_page_number }}{% for key,val in current_filters.items %}{% if val %}&{{ key }}={{ val }}{% endif %}{% endfor %}"><i class="bi bi-chevron-right"></i></a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+
+<style>
+    .bg-active { background-color: #198754 !important; }
+    .bg-repair { background-color: #fd7e14 !important; }
+    .bg-decommissioned { background-color: #6c757d !important; }
+    .bg-lost { background-color: #dc3545 !important; }
+</style>
+{% endblock %}

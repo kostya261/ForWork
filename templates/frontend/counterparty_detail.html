@@ -1,0 +1,188 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ counterparty.name }} | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:counterparties_list' %}">Контрагенты</a></li>
+                    <li class="breadcrumb-item active">{{ counterparty.name }}</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">{{ counterparty.name }}</h2>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'frontend:counterparty_edit' counterparty.pk %}" class="btn btn-outline-primary">
+                <i class="bi bi-pencil"></i> Редактировать
+            </a>
+            <button class="btn btn-outline-danger" onclick="deleteItem(); return false;">
+                <i class="bi bi-trash"></i> Удалить
+            </button>
+        </div>
+    </div>
+    
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-info-circle me-2"></i>Основная информация
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Тип</div>
+                        <div class="col-md-9">
+                            <span class="badge bg-secondary">{{ counterparty.get_type_display }}</span>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Описание</div>
+                        <div class="col-md-9">{{ counterparty.description|linebreaks|default:"—" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Телефон</div>
+                        <div class="col-md-9">{{ counterparty.phone|default:"—" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Email</div>
+                        <div class="col-md-9">{{ counterparty.email|default:"—" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Telegram</div>
+                        <div class="col-md-9">{{ counterparty.telegram|default:"—" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">WhatsApp</div>
+                        <div class="col-md-9">{{ counterparty.whatsapp|default:"—" }}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Последние задачи -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-list-task me-2"></i>Последние задачи
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for task in tasks %}
+                            <a href="{% url 'frontend:task_detail' task.pk %}" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge bg-{{ task.status_color }} me-2">{{ task.get_status_display }}</span>
+                                        {{ task.name }}
+                                    </div>
+                                    <small class="text-muted">{{ task.created_at|date:"d.m.Y" }}</small>
+                                </div>
+                            </a>
+                        {% empty %}
+                            <div class="list-group-item text-center py-3 text-muted">Нет задач</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Адреса -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-geo-alt me-2"></i>Адреса
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="text-muted d-block mb-2">Юридический адрес</label>
+                        <p class="mb-0">{{ counterparty.legal_address|default:"Не указан" }}</p>
+                    </div>
+                    <div>
+                        <label class="text-muted d-block mb-2">Фактический адрес</label>
+                        <p class="mb-0">{{ counterparty.actual_address|default:"Не указан" }}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Реквизиты -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-file-text me-2"></i>Реквизиты
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">ИНН</span>
+                        <span>{{ counterparty.inn|default:"—" }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">КПП</span>
+                        <span>{{ counterparty.kpp|default:"—" }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">ОГРН</span>
+                        <span>{{ counterparty.ogrn|default:"—" }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Банковские счета -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-bank me-2"></i>Банковские счета
+                </div>
+                <div class="card-body p-0">
+                    {% if counterparty.bank_accounts.exists %}
+                        <div class="list-group list-group-flush">
+                            {% for acc in counterparty.bank_accounts.all %}
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <div class="fw-medium">{{ acc.bank.name }}</div>
+                                            <small class="text-muted">{{ acc.account_number }}</small>
+                                        </div>
+                                        {% if acc.is_primary %}
+                                            <span class="badge bg-success">Основной</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="card-body text-center py-3 text-muted">Нет счетов</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const itemId = {{ counterparty.pk }};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    async function deleteItem() {
+        if (!confirm('Удалить контрагента "' + '{{ counterparty.name|escapejs }}' + '"?')) return;
+        
+        try {
+            const response = await fetch(`/api/counterparties/${itemId}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken },
+            });
+            
+            if (!response.ok) throw new Error('Ошибка удаления');
+            window.location.href = '/counterparties/';
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+</script>
+
+<style>
+    .bg-new { background-color: #6c757d !important; }
+    .bg-assigned { background-color: #0d6efd !important; }
+    .bg-in_progress { background-color: #fd7e14 !important; }
+    .bg-paused { background-color: #6f42c1 !important; }
+    .bg-completed { background-color: #198754 !important; }
+    .bg-closed { background-color: #198754 !important; }
+    .bg-cancelled { background-color: #dc3545 !important; }
+</style>
+{% endblock %}

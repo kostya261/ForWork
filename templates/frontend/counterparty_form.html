@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if counterparty %}Редактирование{% else %}Новый{% endif %} контрагент | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:counterparties_list' %}">Контрагенты</a></li>
+                    {% if counterparty %}
+                        <li class="breadcrumb-item"><a href="{% url 'frontend:counterparty_detail' counterparty.pk %}">{{ counterparty.name }}</a></li>
+                        <li class="breadcrumb-item active">Редактирование</li>
+                    {% else %}
+                        <li class="breadcrumb-item active">Новый</li>
+                    {% endif %}
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">{% if counterparty %}Редактирование{% else %}Добавление{% endif %} контрагента</h2>
+        </div>
+        <a href="{% if counterparty %}{% url 'frontend:counterparty_detail' counterparty.pk %}{% else %}{% url 'frontend:counterparties_list' %}{% endif %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg me-1"></i>Отмена
+        </a>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <form id="counterpartyForm">
+                {% csrf_token %}
+                
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label">Название <span class="text-danger">*</span></label>
+                        <input type="text" name="name" id="name" class="form-control" required value="{{ counterparty.name|default:'' }}">
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label class="form-label">Тип</label>
+                        <select name="type" id="type" class="form-select">
+                            {% for value, label in type_choices %}
+                                <option value="{{ value }}" {% if counterparty.type == value %}selected{% elif value == 'client' and not counterparty %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-12">
+                        <label class="form-label">Описание</label>
+                        <textarea name="description" id="description" class="form-control" rows="3">{{ counterparty.description|default:'' }}</textarea>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label class="form-label">Телефон</label>
+                        <input type="text" name="phone" id="phone" class="form-control" value="{{ counterparty.phone|default:'' }}">
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" id="email" class="form-control" value="{{ counterparty.email|default:'' }}">
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label class="form-label">Telegram</label>
+                        <input type="text" name="telegram" id="telegram" class="form-control" value="{{ counterparty.telegram|default:'' }}">
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label class="form-label">WhatsApp</label>
+                        <input type="text" name="whatsapp" id="whatsapp" class="form-control" value="{{ counterparty.whatsapp|default:'' }}">
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label class="form-label">ИНН</label>
+                        <input type="text" name="inn" id="inn" class="form-control" value="{{ counterparty.inn|default:'' }}">
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label class="form-label">КПП</label>
+                        <input type="text" name="kpp" id="kpp" class="form-control" value="{{ counterparty.kpp|default:'' }}">
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label class="form-label">ОГРН</label>
+                        <input type="text" name="ogrn" id="ogrn" class="form-control" value="{{ counterparty.ogrn|default:'' }}">
+                    </div>
+                    
+                    <div class="col-12">
+                        <label class="form-label">Юридический адрес</label>
+                        <textarea name="legal_address" id="legal_address" class="form-control" rows="2">{{ counterparty.legal_address|default:'' }}</textarea>
+                    </div>
+                    
+                    <div class="col-12">
+                        <label class="form-label">Фактический адрес</label>
+                        <textarea name="actual_address" id="actual_address" class="form-control" rows="2">{{ counterparty.actual_address|default:'' }}</textarea>
+                    </div>
+                </div>
+                
+                <hr class="my-4">
+                
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-check-lg me-1"></i>{% if counterparty %}Сохранить{% else %}Создать{% endif %}
+                    </button>
+                    <a href="{% if counterparty %}{% url 'frontend:counterparty_detail' counterparty.pk %}{% else %}{% url 'frontend:counterparties_list' %}{% endif %}" class="btn btn-outline-secondary">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const itemId = {% if counterparty %}{{ counterparty.pk }}{% else %}null{% endif %};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    document.getElementById('counterpartyForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Сохранение...';
+        
+        const data = {
+            name: document.getElementById('name').value,
+            type: document.getElementById('type').value,
+            description: document.getElementById('description').value,
+            phone: document.getElementById('phone').value,
+            email: document.getElementById('email').value,
+            telegram: document.getElementById('telegram').value,
+            whatsapp: document.getElementById('whatsapp').value,
+            inn: document.getElementById('inn').value,
+            kpp: document.getElementById('kpp').value,
+            ogrn: document.getElementById('ogrn').value,
+            legal_address: document.getElementById('legal_address').value,
+            actual_address: document.getElementById('actual_address').value,
+        };
+        
+        const url = itemId ? `/api/counterparties/${itemId}/` : '/api/counterparties/';
+        const method = itemId ? 'PATCH' : 'POST';
+        
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify(data),
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(JSON.stringify(error));
+            }
+            
+            const result = await response.json();
+            window.location.href = `/counterparties/${result.id || itemId}/`;
+            
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+</script>
+{% endblock %}

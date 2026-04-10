@@ -1,0 +1,224 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ item.name }} | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:warehouse_list' %}">Склад</a></li>
+                    <li class="breadcrumb-item active">{{ item.name }}</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">{{ item.name }}</h2>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'frontend:warehouse_edit' item.pk %}" class="btn btn-outline-primary">
+                <i class="bi bi-pencil"></i> Редактировать
+            </a>
+            <button class="btn btn-outline-danger" onclick="deleteItem(); return false;">
+                <i class="bi bi-trash"></i> Удалить
+            </button>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-info-circle me-2"></i>Основная информация
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Артикул</div>
+                        <div class="col-md-9">{{ item.article|default:"—" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Серийный номер</div>
+                        <div class="col-md-9">{{ item.serial_number|default:"—" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Описание</div>
+                        <div class="col-md-9">{{ item.description|linebreaks|default:"—" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Количество</div>
+                        <div class="col-md-9">
+                            <span class="{% if item.is_low_stock %}text-danger fw-bold{% endif %} fs-5">
+                                {{ item.quantity }} {{ item.get_unit_display }}
+                            </span>
+                            <span class="text-muted ms-2">(мин. остаток: {{ item.min_stock }} {{ item.get_unit_display }})</span>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Категория</div>
+                        <div class="col-md-9">{{ item.category.name|default:"—" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Производитель</div>
+                        <div class="col-md-9">{{ item.manufacturer.name|default:"—" }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Журнал транзакций -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-list-ul me-2"></i>Журнал движения
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Дата</th>
+                                    <th>Тип</th>
+                                    <th>Количество</th>
+                                    <th>Отдел</th>
+                                    <th>Задача</th>
+                                    <th>Кто провёл</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for t in transactions %}
+                                <tr>
+                                    <td>{{ t.created_at|date:"d.m.Y H:i" }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if t.transaction_type == 'in' %}success{% elif t.transaction_type == 'out' %}danger{% else %}secondary{% endif %}">
+                                            {{ t.get_transaction_type_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ t.quantity }} {{ item.get_unit_display }}</td>
+                                    <td>{{ t.from_department.name|default:t.to_department.name|default:"—" }}</td>
+                                    <td>
+                                        {% if t.task %}
+                                            <a href="{% url 'frontend:task_detail' t.task.pk %}">#{{ t.task.pk }}</a>
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ t.created_by.get_full_name|default:t.created_by.username }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-3 text-muted">Нет операций</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Изображения -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-images me-2"></i>Изображения
+                </div>
+                <div class="card-body">
+                    {% if item.images.exists %}
+                        <div id="warehouseCarousel" class="carousel slide" data-bs-ride="false">
+                            <div class="carousel-inner">
+                                {% for img in item.images.all %}
+                                    <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                                        <img src="{{ img.image.url }}" class="d-block w-100 rounded" style="max-height: 250px; object-fit: contain;">
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% if item.images.count > 1 %}
+                                <button class="carousel-control-prev" type="button" data-bs-target="#warehouseCarousel" data-bs-slide="prev">
+                                    <span class="carousel-control-prev-icon bg-dark rounded-circle"></span>
+                                </button>
+                                <button class="carousel-control-next" type="button" data-bs-target="#warehouseCarousel" data-bs-slide="next">
+                                    <span class="carousel-control-next-icon bg-dark rounded-circle"></span>
+                                </button>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4 text-muted">
+                            <i class="bi bi-image fs-1"></i>
+                            <p class="mt-2 mb-0">Нет изображений</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Цены -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-currency-dollar me-2"></i>Цены
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">Закупочная</span>
+                        <span class="fw-bold">{{ item.purchase_price|default:"—" }} ₽</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">Розничная</span>
+                        <span class="fw-bold">{{ item.retail_price|default:"—" }} ₽</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Общая стоимость</span>
+                        <span class="fw-bold">
+                            {% if item.purchase_price and item.quantity %}
+                                {% widthratio item.purchase_price 1 item.quantity as total %}
+                                {{ total }} ₽
+                            {% else %}
+                                —
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Размещение -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-building me-2"></i>Размещение
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="text-muted d-block mb-2">Отдел</label>
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-building me-2"></i>
+                            <span>{{ item.department.name|default:"Не указан" }}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-muted d-block mb-2">Дата создания</label>
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-calendar me-2"></i>
+                            <span>{{ item.created_at|date:"d.m.Y H:i" }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const itemId = {{ item.pk }};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    async function deleteItem() {
+        if (!confirm('Удалить позицию "' + '{{ item.name|escapejs }}' + '"?')) return;
+        
+        try {
+            const response = await fetch(`/api/warehouse/${itemId}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken },
+            });
+            
+            if (!response.ok) throw new Error('Ошибка удаления');
+            window.location.href = '/warehouse/';
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+</script>
+{% endblock %}

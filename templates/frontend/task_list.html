@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+
+{% block title %}Задачи | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-light mb-0">
+            <i class="bi bi-check2-square me-2"></i>Задачи
+        </h2>
+        <a href="{% url 'frontend:task_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>Новая задача
+        </a>
+    </div>
+    
+    <div class="row g-3 mb-4">
+        <div class="col-md-2">
+            <div class="card bg-light">
+                <div class="card-body text-center py-2">
+                    <h5 class="mb-0">{{ stats.total }}</h5>
+                    <small class="text-muted">Всего</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-primary bg-opacity-10">
+                <div class="card-body text-center py-2">
+                    <h5 class="mb-0 text-primary">{{ stats.new }}</h5>
+                    <small class="text-primary">Новых</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-warning bg-opacity-10">
+                <div class="card-body text-center py-2">
+                    <h5 class="mb-0 text-warning">{{ stats.in_progress }}</h5>
+                    <small class="text-warning">В работе</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-success bg-opacity-10">
+                <div class="card-body text-center py-2">
+                    <h5 class="mb-0 text-success">{{ stats.completed }}</h5>
+                    <small class="text-success">Выполнено</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-danger bg-opacity-10">
+                <div class="card-body text-center py-2">
+                    <h5 class="mb-0 text-danger">{{ stats.overdue }}</h5>
+                    <small class="text-danger">Просрочено</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <select name="status" class="form-select">
+                        <option value="">Все статусы</option>
+                        {% for value, label in status_choices %}
+                            <option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="priority" class="form-select">
+                        <option value="">Все приоритеты</option>
+                        {% for value, label in priority_choices %}
+                            <option value="{{ value }}" {% if current_filters.priority == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <div class="form-check mt-2">
+                        <input type="checkbox" name="my" value="true" class="form-check-input"
+                               {% if current_filters.my == 'true' %}checked{% endif %} id="myTasks">
+                        <label class="form-check-label" for="myTasks">Только мои</label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="input-group">
+                        <input type="text" name="search" class="form-control" placeholder="Поиск..."
+                               value="{{ current_filters.search }}">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
+                        {% if current_filters.status or current_filters.priority or current_filters.my or current_filters.search %}
+                            <a href="{% url 'frontend:tasks_list' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Название</th>
+                        <th>Статус</th>
+                        <th>Приоритет</th>
+                        <th>Ответственный</th>
+                        <th>Отдел</th>
+                        <th>Срок</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in tasks %}
+                    <tr class="cursor-pointer" onclick="window.location='{% url 'frontend:task_detail' task.pk %}'">
+                        <td>#{{ task.pk }}</td>
+                        <td>
+                            <div class="fw-medium">{{ task.name }}</div>
+                            <small class="text-muted">{{ task.description|truncatechars:50 }}</small>
+                        </td>
+                        <td>
+                            <span class="status-badge bg-{{ task.status_color }} bg-opacity-10 text-{{ task.status_color }}">
+                                {{ task.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ task.priority_color }} bg-opacity-10 text-{{ task.priority_color }}">
+                                {{ task.get_priority_display }}
+                            </span>
+                        </td>
+                        <td>{{ task.responsible.get_full_name|default:"—" }}</td>
+                        <td>{{ task.department.name|default:"—" }}</td>
+                        <td>
+                            {% if task.deadline %}
+                                <span class="{% if task.is_overdue %}text-danger{% endif %}">
+                                    {{ task.deadline|date:"d.m.Y" }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td onclick="event.stopPropagation()">
+                            <div class="dropdown">
+                                <i class="bi bi-three-dots-vertical cursor-pointer" data-bs-toggle="dropdown"></i>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="{% url 'frontend:task_detail' task.pk %}"><i class="bi bi-eye me-2"></i>Просмотр</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'frontend:task_edit' task.pk %}"><i class="bi bi-pencil me-2"></i>Редактировать</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item text-danger" href="#" onclick="deleteTask({{ task.pk }}); return false;"><i class="bi bi-trash me-2"></i>Удалить</a></li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1"></i>
+                            <p class="mt-2">Задач не найдено</p>
+                            <a href="{% url 'frontend:task_create' %}" class="btn btn-sm btn-primary">Создать задачу</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if tasks.paginator.num_pages > 1 %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if tasks.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page={{ tasks.previous_page_number }}"><i class="bi bi-chevron-left"></i></a></li>
+            {% endif %}
+            <li class="page-item active"><span class="page-link">{{ tasks.number }}</span></li>
+            {% if tasks.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ tasks.next_page_number }}"><i class="bi bi-chevron-right"></i></a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+
+<script>
+    async function deleteTask(taskId) {
+        if (!confirm('Удалить задачу #' + taskId + '?')) return;
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        try {
+            await fetch(`/api/tasks/${taskId}/`, { method: 'DELETE', headers: { 'X-CSRFToken': csrfToken } });
+            location.reload();
+        } catch (error) {
+            alert('Ошибка удаления');
+        }
+    }
+</script>
+
+<style>
+    .bg-new { background-color: #6c757d !important; } .text-new { color: #6c757d !important; }
+    .bg-assigned { background-color: #0d6efd !important; } .text-assigned { color: #0d6efd !important; }
+    .bg-in_progress { background-color: #fd7e14 !important; } .text-in_progress { color: #fd7e14 !important; }
+    .bg-paused { background-color: #6f42c1 !important; } .text-paused { color: #6f42c1 !important; }
+    .bg-completed { background-color: #198754 !important; } .text-completed { color: #198754 !important; }
+    .bg-closed { background-color: #198754 !important; } .text-closed { color: #198754 !important; }
+    .bg-cancelled { background-color: #dc3545 !important; } .text-cancelled { color: #dc3545 !important; }
+    .bg-low { background-color: #198754 !important; } .text-low { color: #198754 !important; }
+    .bg-medium { background-color: #0d6efd !important; } .text-medium { color: #0d6efd !important; }
+    .bg-high { background-color: #fd7e14 !important; } .text-high { color: #fd7e14 !important; }
+    .bg-critical { background-color: #dc3545 !important; } .text-critical { color: #dc3545 !important; }
+</style>
+{% endblock %}

@@ -1,0 +1,435 @@
+{% extends 'base.html' %}
+
+{% block title %}Задача #{{ task.pk }} | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:tasks_list' %}">Задачи</a></li>
+                    <li class="breadcrumb-item active">Задача #{{ task.pk }}</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">{{ task.name }}</h2>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'frontend:task_edit' task.pk %}" class="btn btn-outline-primary">
+                <i class="bi bi-pencil"></i> Редактировать
+            </a>
+            <div class="dropdown">
+                <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="bi bi-arrow-repeat me-1"></i>Сменить статус
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    {% for value, label in status_choices %}
+                        {% if value != task.status %}
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="updateStatus('{{ value }}'); return false;">
+                                    {{ label }}
+                                </a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+            </div>
+            <button class="btn btn-outline-danger" onclick="deleteTask(); return false;">
+                <i class="bi bi-trash"></i> Удалить
+            </button>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-info-circle me-2"></i>Основная информация
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Описание</div>
+                        <div class="col-md-9">{{ task.description|linebreaks|default:"<span class='text-muted'>Нет описания</span>" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Статус</div>
+                        <div class="col-md-9">
+                            <span class="badge bg-{{ task.status_color }} px-3 py-2">{{ task.get_status_display }}</span>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Приоритет</div>
+                        <div class="col-md-9">
+                            <span class="badge bg-{{ task.priority_color }} px-3 py-2">{{ task.get_priority_display }}</span>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Контрагент</div>
+                        <div class="col-md-9">{{ task.counterparty.name|default:"<span class='text-muted'>Не указан</span>" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Отдел</div>
+                        <div class="col-md-9">{{ task.department.name|default:"<span class='text-muted'>Не указан</span>" }}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 text-muted">Создана</div>
+                        <div class="col-md-9">
+                            {{ task.created_at|date:"d.m.Y H:i" }}
+                            {% if task.created_by %}
+                                ({{ task.created_by.get_full_name|default:task.created_by.username }})
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-box-seam me-2"></i>Требуемые материалы</span>
+                    <button class="btn btn-sm btn-outline-primary" onclick="addMaterial(); return false;">
+                        <i class="bi bi-plus-lg"></i>Добавить
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    {% if task.material_requirements.exists %}
+                    <table class="table mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Материал</th>
+                                <th>Артикул</th>
+                                <th>Запрошено</th>
+                                <th>Списано</th>
+                                <th>Осталось</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for req in task.material_requirements.all %}
+                            <tr>
+                                <td>{{ req.warehouse_item.name }}</td>
+                                <td>{{ req.warehouse_item.article|default:"—" }}</td>
+                                <td>{{ req.planned_quantity }} {{ req.warehouse_item.get_unit_display }}</td>
+                                <td>{{ req.consumed_quantity }} {{ req.warehouse_item.get_unit_display }}</td>
+                                <td>
+                                    {% if req.remaining_to_consume > 0 %}
+                                        <span class="text-warning">{{ req.remaining_to_consume }}</span>
+                                    {% else %}
+                                        <span class="text-success">✓</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if req.remaining_to_consume > 0 %}
+                                        <button class="btn btn-sm btn-outline-success" onclick="consumeMaterial({{ req.pk }}, {{ req.warehouse_item.pk }}, {{ req.remaining_to_consume }}); return false;">
+                                            Списать
+                                        </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-box fs-2"></i>
+                        <p class="mt-2 mb-0">Нет требуемых материалов</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-tools me-2"></i>Требуемый инвентарь</span>
+                    <button class="btn btn-sm btn-outline-primary" onclick="addInventory(); return false;">
+                        <i class="bi bi-plus-lg"></i>Добавить
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    {% if task.inventory_requirements.exists %}
+                    <table class="table mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Инвентарь</th>
+                                <th>Инв. номер</th>
+                                <th>Количество</th>
+                                <th>Примечание</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for req in task.inventory_requirements.all %}
+                            <tr>
+                                <td>{{ req.inventory.name }}</td>
+                                <td>{{ req.inventory.inventory_number }}</td>
+                                <td>{{ req.quantity }} шт.</td>
+                                <td>{{ req.comment|default:"—" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-tools fs-2"></i>
+                        <p class="mt-2 mb-0">Нет требуемого инвентаря</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-chat me-2"></i>Комментарии
+                </div>
+                <div class="card-body">
+                    {% for comment in task.comments.all %}
+                    <div class="d-flex mb-3">
+                        <div class="flex-shrink-0">
+                            <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center"
+                                 style="width: 40px; height: 40px;">
+                                <span class="text-primary fw-bold">
+                                    {{ comment.author.get_full_name|default:comment.author.username|slice:":1"|upper }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="mb-1">{{ comment.author.get_full_name|default:comment.author.username }}</h6>
+                                <small class="text-muted">{{ comment.created_at|date:"d.m.Y H:i" }}</small>
+                            </div>
+                            <p class="mb-0">{{ comment.text|linebreaks }}</p>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-3 text-muted">
+                        <p class="mb-0">Нет комментариев</p>
+                    </div>
+                    {% endfor %}
+
+                    <form method="post" action="#" class="mt-4" id="commentForm">
+                        {% csrf_token %}
+                        <div class="input-group">
+                            <textarea name="text" id="commentText" class="form-control" rows="2" placeholder="Добавить комментарий..."></textarea>
+                            <button type="submit" class="btn btn-primary align-self-end">
+                                <i class="bi bi-send"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-calendar me-2"></i>Сроки
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">Создана</span>
+                        <span>{{ task.created_at|date:"d.m.Y" }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">Дедлайн</span>
+                        <span class="{% if task.is_overdue %}text-danger fw-bold{% endif %}">
+                            {{ task.deadline|date:"d.m.Y"|default:"Не указан" }}
+                            {% if task.is_overdue %}
+                                <i class="bi bi-exclamation-circle ms-1"></i>
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% if task.completed_at %}
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Выполнена</span>
+                        <span class="text-success">{{ task.completed_at|date:"d.m.Y" }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-people me-2"></i>Ответственные
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="text-muted d-block mb-2">Ответственный</label>
+                        <div class="d-flex align-items-center">
+                            <div class="bg-success bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-2"
+                                 style="width: 32px; height: 32px;">
+                                <span class="text-success fw-bold">
+                                    {% if task.responsible %}
+                                        {{ task.responsible.get_full_name|default:task.responsible.username|slice:":1"|upper }}
+                                    {% else %}
+                                        ?
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <span>
+                                {% if task.responsible %}
+                                    {{ task.responsible.get_full_name|default:task.responsible.username }}
+                                {% else %}
+                                    Не назначен
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+
+                    <label class="text-muted d-block mb-2">Соисполнители</label>
+                    {% if task.co_executors.exists %}
+                        {% for user in task.co_executors.all %}
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="bg-info bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-2"
+                                 style="width: 32px; height: 32px;">
+                                <span class="text-info fw-bold">
+                                    {{ user.get_full_name|default:user.username|slice:":1"|upper }}
+                                </span>
+                            </div>
+                            <span>{{ user.get_full_name|default:user.username }}</span>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted mb-0">Нет соисполнителей</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-clock-history me-2"></i>История статусов
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for history in task.status_history.all %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge bg-secondary">{{ history.old_status|default:"—" }}</span>
+                                <i class="bi bi-arrow-right"></i>
+                                <span class="badge bg-{{ task.status_color }}">{{ history.new_status }}</span>
+                            </div>
+                            <small class="text-muted d-block">
+                                {{ history.changed_by.get_full_name|default:history.changed_by.username }}
+                                • {{ history.created_at|date:"d.m.Y H:i" }}
+                            </small>
+                            {% if history.comment %}
+                                <p class="mb-0 mt-1 small">{{ history.comment }}</p>
+                            {% endif %}
+                        </div>
+                        {% empty %}
+                        <div class="list-group-item text-center text-muted py-3">
+                            Нет записей
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const taskId = {{ task.pk }};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    async function updateStatus(newStatus) {
+        const comment = prompt('Комментарий к смене статуса (необязательно):');
+
+        try {
+            const response = await fetch(`/api/tasks/${taskId}/update_status/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({ status: newStatus, comment: comment || '' }),
+            });
+
+            if (!response.ok) throw new Error('Ошибка смены статуса');
+            location.reload();
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+
+    async function deleteTask() {
+        if (!confirm('Удалить задачу #' + taskId + '? Это действие нельзя отменить.')) return;
+
+        try {
+            const response = await fetch(`/api/tasks/${taskId}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken },
+            });
+
+            if (!response.ok) throw new Error('Ошибка удаления');
+            window.location.href = '/tasks/';
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+
+    document.getElementById('commentForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const textarea = document.getElementById('commentText');
+        const text = textarea.value.trim();
+        if (!text) return;
+
+        try {
+            const response = await fetch(`/api/tasks/${taskId}/comments/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({ text }),
+            });
+
+            if (!response.ok) throw new Error('Ошибка добавления комментария');
+            location.reload();
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    });
+
+    async function consumeMaterial(requirementId, warehouseItemId, maxQuantity) {
+        const quantity = prompt(`Введите количество (макс. ${maxQuantity}):`, maxQuantity);
+        if (!quantity) return;
+
+        try {
+            const response = await fetch(`/api/tasks/${taskId}/consume_material/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({ requirement_id: requirementId, quantity: parseFloat(quantity) }),
+            });
+
+            if (!response.ok) throw new Error('Ошибка списания');
+            location.reload();
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+
+    function addMaterial() {
+        alert('Форма добавления материала в разработке');
+    }
+
+    function addInventory() {
+        alert('Форма добавления инвентаря в разработке');
+    }
+</script>
+
+<style>
+    .bg-new { background-color: #6c757d !important; }
+    .bg-assigned { background-color: #0d6efd !important; }
+    .bg-in_progress { background-color: #fd7e14 !important; }
+    .bg-paused { background-color: #6f42c1 !important; }
+    .bg-purple { background-color: #6f42c1 !important; }
+    .bg-completed { background-color: #198754 !important; }
+    .bg-closed { background-color: #198754 !important; }
+    .bg-cancelled { background-color: #dc3545 !important; }
+    .bg-low { background-color: #198754 !important; }
+    .bg-medium { background-color: #0d6efd !important; }
+    .bg-high { background-color: #fd7e14 !important; }
+    .bg-critical { background-color: #dc3545 !important; }
+</style>
+{% endblock %}

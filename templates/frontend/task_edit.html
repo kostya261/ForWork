@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+
+{% block title %}Редактирование задачи | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:tasks_list' %}">Задачи</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:task_detail' task.pk %}">Задача #{{ task.pk }}</a></li>
+                    <li class="breadcrumb-item active">Редактирование</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">Редактирование задачи #{{ task.pk }}</h2>
+        </div>
+        <a href="{% url 'frontend:task_detail' task.pk %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg me-1"></i>Отмена
+        </a>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <form id="taskForm">
+                {% csrf_token %}
+
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Название задачи <span class="text-danger">*</span></label>
+                        <input type="text" name="name" id="taskName" class="form-control" required value="{{ task.name }}">
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Описание</label>
+                        <textarea name="description" id="taskDescription" class="form-control" rows="4">{{ task.description }}</textarea>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Приоритет</label>
+                        <select name="priority" id="taskPriority" class="form-select">
+                            <option value="low" {% if task.priority == 'low' %}selected{% endif %}>Низкий</option>
+                            <option value="medium" {% if task.priority == 'medium' %}selected{% endif %}>Средний</option>
+                            <option value="high" {% if task.priority == 'high' %}selected{% endif %}>Высокий</option>
+                            <option value="critical" {% if task.priority == 'critical' %}selected{% endif %}>Критический</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Статус</label>
+                        <select name="status" id="taskStatus" class="form-select">
+                            <option value="new" {% if task.status == 'new' %}selected{% endif %}>Новая</option>
+                            <option value="assigned" {% if task.status == 'assigned' %}selected{% endif %}>Назначена</option>
+                            <option value="in_progress" {% if task.status == 'in_progress' %}selected{% endif %}>В работе</option>
+                            <option value="paused" {% if task.status == 'paused' %}selected{% endif %}>Приостановлена</option>
+                            <option value="completed" {% if task.status == 'completed' %}selected{% endif %}>Выполнена</option>
+                            <option value="closed" {% if task.status == 'closed' %}selected{% endif %}>Закрыта</option>
+                            <option value="cancelled" {% if task.status == 'cancelled' %}selected{% endif %}>Отменена</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Срок выполнения</label>
+                        <input type="datetime-local" name="deadline" id="taskDeadline" class="form-control"
+                               value="{{ task.deadline|date:'Y-m-d\TH:i' }}">
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Отдел</label>
+                        <select name="department" id="taskDepartment" class="form-select">
+                            <option value="">Не указан</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Ответственный</label>
+                        <select name="responsible" id="taskResponsible" class="form-select">
+                            <option value="">Не назначен</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Контрагент</label>
+                        <select name="counterparty" id="taskCounterparty" class="form-select">
+                            <option value="">Не указан</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Соисполнители</label>
+                        <select name="co_executors" id="taskCoExecutors" class="form-select" multiple size="4">
+                        </select>
+                        <small class="text-muted">Ctrl+Click для выбора нескольких</small>
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-check-lg me-1"></i>Сохранить
+                    </button>
+                    <a href="{% url 'frontend:task_detail' task.pk %}" class="btn btn-outline-secondary">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const taskId = {{ task.pk }};
+
+    // Текущие значения задачи (передаём из Django в JS)
+    const currentTask = {
+        responsible: {{ task.responsible_id|default:'null' }},
+        department: {{ task.department_id|default:'null' }},
+        counterparty: {{ task.counterparty_id|default:'null' }},
+        coExecutors: [{% for u in task.co_executors.all %}{{ u.id }}{% if not forloop.last %},{% endif %}{% endfor %}],
+    };
+
+    console.log('Current task:', currentTask);
+
+    // Загрузка справочников
+    async function loadSelectOptions() {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        try {
+            // Загружаем пользователей
+            const usersRes = await fetch('/api/users/', {
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const usersData = await usersRes.json();
+            const users = usersData.results || usersData;
+
+            const responsibleSelect = document.getElementById('taskResponsible');
+            const coExecutorsSelect = document.getElementById('taskCoExecutors');
+
+            users.forEach(user => {
+                const option1 = document.createElement('option');
+                option1.value = user.id;
+                option1.textContent = user.full_name || user.username;
+                if (user.id === currentTask.responsible) option1.selected = true;
+                responsibleSelect.appendChild(option1);
+
+                const option2 = document.createElement('option');
+                option2.value = user.id;
+                option2.textContent = user.full_name || user.username;
+                if (currentTask.coExecutors.includes(user.id)) option2.selected = true;
+                coExecutorsSelect.appendChild(option2);
+            });
+
+            // Загружаем отделы
+            const deptRes = await fetch('/api/departments/', {
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const deptData = await deptRes.json();
+            const departments = deptData.results || deptData;
+
+            const deptSelect = document.getElementById('taskDepartment');
+            departments.forEach(dept => {
+                const option = document.createElement('option');
+                option.value = dept.id;
+                option.textContent = dept.name;
+                if (dept.id === currentTask.department) option.selected = true;
+                deptSelect.appendChild(option);
+            });
+
+            // Загружаем контрагентов
+            const cpRes = await fetch('/api/counterparties/', {
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const cpData = await cpRes.json();
+            const counterparties = cpData.results || cpData;
+
+            const cpSelect = document.getElementById('taskCounterparty');
+            counterparties.forEach(cp => {
+                const option = document.createElement('option');
+                option.value = cp.id;
+                option.textContent = cp.name;
+                if (cp.id === currentTask.counterparty) option.selected = true;
+                cpSelect.appendChild(option);
+            });
+
+        } catch (error) {
+            console.error('Ошибка загрузки справочников:', error);
+        }
+    }
+
+    // Отправка формы
+    document.getElementById('taskForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Сохранение...';
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        const data = {
+            name: document.getElementById('taskName').value,
+            description: document.getElementById('taskDescription').value || '',
+            priority: document.getElementById('taskPriority').value,
+            status: document.getElementById('taskStatus').value,
+        };
+
+        const department = document.getElementById('taskDepartment').value;
+        data.department_id = department ? parseInt(department) : null;
+
+        const counterparty = document.getElementById('taskCounterparty').value;
+        data.counterparty_id = counterparty ? parseInt(counterparty) : null;
+
+        const responsible = document.getElementById('taskResponsible').value;
+        data.responsible_id = responsible ? parseInt(responsible) : null;
+
+        const coExecutors = Array.from(document.getElementById('taskCoExecutors').selectedOptions).map(opt => parseInt(opt.value));
+        data.co_executors_ids = coExecutors;
+
+        const deadline = document.getElementById('taskDeadline').value;
+        data.deadline = deadline || null;
+
+        console.log('Updating task:', data);
+
+        try {
+            const response = await fetch(`/api/tasks/${taskId}/`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(JSON.stringify(error));
+            }
+
+            window.location.href = `/tasks/${taskId}/`;
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Ошибка сохранения: ' + error.message);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+
+    // Загружаем справочники при открытии страницы
+    loadSelectOptions();
+</script>
+{% endblock %}
