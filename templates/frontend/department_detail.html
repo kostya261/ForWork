@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ department.name }} | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:department_list' %}">Отделы</a></li>
+                    <li class="breadcrumb-item active">{{ department.name }}</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">{{ department.name }}</h2>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'frontend:department_edit' department.pk %}" class="btn btn-outline-primary">
+                <i class="bi bi-pencil"></i> Редактировать
+            </a>
+            <button class="btn btn-outline-danger" onclick="deleteDepartment(); return false;">
+                <i class="bi bi-trash"></i> Удалить
+            </button>
+        </div>
+    </div>
+    
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-info-circle me-2"></i>Основная информация
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Описание</div>
+                        <div class="col-md-9">{{ department.description|linebreaks|default:"—" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Родительский отдел</div>
+                        <div class="col-md-9">
+                            {% if department.parent %}
+                                <a href="{% url 'frontend:department_detail' department.parent.pk %}">{{ department.parent.name }}</a>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Руководитель</div>
+                        <div class="col-md-9">
+                            {% if department.head %}
+                                <a href="{% url 'frontend:user_detail' department.head.pk %}">{{ department.head.get_full_name }}</a>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Юридический адрес</div>
+                        <div class="col-md-9">{{ department.legal_address|default:"—" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Фактический адрес</div>
+                        <div class="col-md-9">{{ department.actual_address|default:"—" }}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Сотрудники отдела -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-people me-2"></i>Сотрудники ({{ employees.count }})
+                </div>
+                <div class="card-body p-0">
+                    {% if employees %}
+                        <div class="list-group list-group-flush">
+                            {% for emp in employees %}
+                                <a href="{% url 'frontend:user_detail' emp.pk %}" class="list-group-item list-group-item-action">
+                                    <div class="d-flex align-items-center">
+                                        <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-3" 
+                                             style="width: 40px; height: 40px;">
+                                            <span class="text-primary fw-bold">
+                                                {{ emp.get_full_name|default:emp.username|slice:":1"|upper }}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <div class="fw-medium">{{ emp.get_full_name|default:emp.username }}</div>
+                                            <small class="text-muted">{{ emp.position.name|default:"—" }}</small>
+                                        </div>
+                                    </div>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-3 text-muted">Нет сотрудников</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Подотделы -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-diagram-2 me-2"></i>Подотделы
+                </div>
+                <div class="card-body p-0">
+                    {% with children=department.children.all %}
+                        {% if children %}
+                            <div class="list-group list-group-flush">
+                                {% for child in children %}
+                                    <a href="{% url 'frontend:department_detail' child.pk %}" class="list-group-item list-group-item-action">
+                                        <i class="bi bi-building me-2"></i>{{ child.name }}
+                                    </a>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-3 text-muted">Нет подотделов</div>
+                        {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const deptId = {{ department.pk }};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    async function deleteDepartment() {
+        if (!confirm('Удалить отдел "' + '{{ department.name|escapejs }}' + '"?')) return;
+        
+        try {
+            const response = await fetch(`/api/departments/${deptId}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken },
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Ошибка удаления');
+            }
+            
+            window.location.href = '/departments/';
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+</script>
+{% endblock %}

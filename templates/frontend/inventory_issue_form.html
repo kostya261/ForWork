@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+
+{% block title %}Новая выдача инвентаря | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:inventory_issue_list' %}">Выдача инвентаря</a></li>
+                    <li class="breadcrumb-item active">Новая</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">Создание выдачи инвентаря</h2>
+        </div>
+        <a href="{% url 'frontend:inventory_issue_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg me-1"></i>Отмена
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form id="issueForm">
+                {% csrf_token %}
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label">Отдел <span class="text-danger">*</span></label>
+                        <select name="department" id="department" class="form-select" required>
+                            <option value="">Выберите отдел</option>
+                            {% for d in departments %}
+                                <option value="{{ d.id }}">{{ d.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Задача</label>
+                        <select name="task" id="task" class="form-select">
+                            <option value="">Не указана</option>
+                            {% for t in tasks %}
+                                <option value="{{ t.id }}">#{{ t.id }} - {{ t.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Дата выдачи</label>
+                        <input type="date" name="issue_date" id="issue_date" class="form-control" value="{{ today|date:'Y-m-d' }}">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Комментарий</label>
+                        <textarea name="comment" id="comment" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Инвентарь</h5>
+                <div id="itemsContainer"></div>
+
+                <button type="button" class="btn btn-outline-primary mt-3" onclick="addItemRow()">
+                    <i class="bi bi-plus-lg me-1"></i>Добавить инвентарь
+                </button>
+
+                <hr class="my-4">
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-check-lg me-1"></i>Создать
+                    </button>
+                    <a href="{% url 'frontend:inventory_issue_list' %}" class="btn btn-outline-secondary">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    // Данные из Django
+    const inventoryItems = [
+        {% for item in inventory_items %}
+        { id: {{ item.id }}, name: "{{ item.name|escapejs }}", invNum: "{{ item.inventory_number }}" }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    const users = [
+        {% for u in users %}
+        { id: {{ u.id }}, name: "{{ u.get_full_name|default:u.username|escapejs }}" }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    console.log('Inventory items:', inventoryItems);
+    console.log('Users:', users);
+
+    function addItemRow() {
+        const container = document.getElementById('itemsContainer');
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 align-items-end item-row';
+
+        // Выпадающий список инвентаря
+        let invOptions = '<option value="">Выберите инвентарь</option>';
+        inventoryItems.forEach(function(item) {
+            invOptions += '<option value="' + item.id + '">' + item.name + ' (' + item.invNum + ')</option>';
+        });
+
+        // Выпадающий список ответственных
+        let userOptions = '<option value="">Выберите ответственного</option>';
+        users.forEach(function(u) {
+            userOptions += '<option value="' + u.id + '">' + u.name + '</option>';
+        });
+
+        row.innerHTML = `
+            <div class="col-md-5">
+                <select class="form-select item-select" required>
+                    ${invOptions}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="number" class="form-control item-qty" value="1" min="1" required>
+            </div>
+            <div class="col-md-4">
+                <select class="form-select item-user" required>
+                    ${userOptions}
+                </select>
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.item-row').remove();">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+
+        container.appendChild(row);
+    }
+
+    document.getElementById('issueForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Создание...';
+
+        // Собираем инвентарь
+        const items = [];
+        document.querySelectorAll('.item-row').forEach(function(row) {
+            const select = row.querySelector('.item-select');
+            const qty = row.querySelector('.item-qty');
+            const user = row.querySelector('.item-user');
+
+            if (select.value && qty.value && user.value) {
+                items.push({
+                    inventory_item: parseInt(select.value),
+                    quantity: parseInt(qty.value),
+                    responsible: parseInt(user.value)
+                });
+            }
+        });
+
+        if (items.length === 0) {
+            alert('Добавьте хотя бы один инвентарь');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+            return;
+        }
+
+        const data = {
+            department: parseInt(document.getElementById('department').value),
+            task: document.getElementById('task').value ? parseInt(document.getElementById('task').value) : null,
+            issue_date: document.getElementById('issue_date').value || new Date().toISOString().split('T')[0],
+            comment: document.getElementById('comment').value || '',
+            items: items
+        };
+
+        console.log('Sending data:', data);
+
+        try {
+            const response = await fetch('/api/documents/inventory-issues/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify(data),
+            });
+
+            const responseText = await response.text();
+            console.log('Response:', responseText);
+
+            if (!response.ok) {
+                throw new Error(responseText);
+            }
+
+            const result = JSON.parse(responseText);
+            window.location.href = '/documents/inventory-issues/' + (result.id || result.pk) + '/';
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Ошибка: ' + error.message);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+
+    // Добавляем первую строку
+    addItemRow();
+</script>
+{% endblock %}

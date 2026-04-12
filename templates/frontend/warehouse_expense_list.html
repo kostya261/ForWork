@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block title %}Расходные накладные | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-light mb-0">
+            <i class="bi bi-box-arrow-up me-2"></i>Расходные накладные
+        </h2>
+        <a href="{% url 'frontend:warehouse_expense_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>Создать
+        </a>
+    </div>
+    
+    <!-- Статистика -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card bg-light">
+                <div class="card-body text-center py-2">
+                    <h5 class="mb-0">{{ stats.total }}</h5>
+                    <small class="text-muted">Всего</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-warning bg-opacity-10">
+                <div class="card-body text-center py-2">
+                    <h5 class="mb-0 text-warning">{{ stats.draft }}</h5>
+                    <small class="text-warning">Черновики</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success bg-opacity-10">
+                <div class="card-body text-center py-2">
+                    <h5 class="mb-0 text-success">{{ stats.conducted }}</h5>
+                    <small class="text-success">Проведены</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Таблица -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Номер</th>
+                        <th>Дата</th>
+                        <th>Склад</th>
+                        <th>Получатель</th>
+                        <th>Задача</th>
+                        <th>Сумма</th>
+                        <th>Статус</th>
+                        <th>Создал</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in expenses %}
+                    <tr class="cursor-pointer" onclick="window.location='{% url 'frontend:warehouse_expense_detail' e.pk %}'">
+                        <td>{{ e.number }}</td>
+                        <td>{{ e.expense_date|date:"d.m.Y" }}</td>
+                        <td>{{ e.department.name|default:"—" }}</td>
+                        <td>{{ e.counterparty.name|default:"—" }}</td>
+                        <td>{% if e.task %}#{{ e.task.pk }}{% else %}—{% endif %}</td>
+                        <td>{{ e.total_sum|floatformat:2 }} ₽</td>
+                        <td>
+                            <span class="badge {% if e.status == 'draft' %}bg-warning{% elif e.status == 'conducted' %}bg-success{% else %}bg-secondary{% endif %}">
+                                {{ e.get_status_display }}
+                            </span>
+                        </td>
+                        <td>{{ e.created_by.get_full_name|default:e.created_by.username }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="bi bi-file-text fs-1"></i>
+                            <p class="mt-2">Нет расходных накладных</p>
+                            <a href="{% url 'frontend:warehouse_expense_create' %}" class="btn btn-sm btn-primary">Создать</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

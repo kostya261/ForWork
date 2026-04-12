@@ -7,7 +7,8 @@ from django.utils import timezone
 
 from .models import (
     MaterialRequest, MaterialRequestItem,
-    InventoryIssue, InventoryIssueItem
+    InventoryIssue, InventoryIssueItem, WarehouseReceipt, WarehouseExpense, WarehouseTransfer, WarehouseStocktake,
+    InventoryWriteOff, InventoryTransfer, InventoryStocktake, WorkOrder, CompletionAct, Invoice, InvoiceFactura
 )
 from .serializers import (
     MaterialRequestListSerializer, MaterialRequestDetailSerializer,
@@ -15,7 +16,13 @@ from .serializers import (
     IssueMaterialItemSerializer,
     InventoryIssueListSerializer, InventoryIssueDetailSerializer,
     InventoryIssueCreateSerializer, InventoryIssueUpdateStatusSerializer,
-    ReturnInventoryItemSerializer
+    ReturnInventoryItemSerializer, WarehouseReceiptSerializer, WarehouseReceiptCreateSerializer,
+    WarehouseExpenseSerializer, WarehouseExpenseCreateSerializer, WarehouseTransferSerializer,
+    WarehouseTransferCreateSerializer, WarehouseStocktakeSerializer, WarehouseStocktakeCreateSerializer,
+    InventoryWriteOffSerializer, InventoryWriteOffCreateSerializer, InventoryTransferSerializer,
+    InventoryTransferCreateSerializer, InventoryStocktakeSerializer, InventoryStocktakeCreateSerializer,
+    WorkOrderCreateSerializer, WorkOrderSerializer, CompletionActCreateSerializer, CompletionActSerializer,
+    InvoiceSerializer, InvoiceCreateSerializer, InvoiceFacturaSerializer, InvoiceFacturaCreateSerializer
 )
 
 
@@ -296,3 +303,327 @@ class InventoryIssueViewSet(viewsets.ModelViewSet):
             })
 
         return Response(data)
+
+
+class WarehouseReceiptViewSet(viewsets.ModelViewSet):
+    queryset = WarehouseReceipt.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return WarehouseReceiptCreateSerializer
+        return WarehouseReceiptSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def conduct(self, request, pk=None):
+        """Провести накладную"""
+        receipt = self.get_object()
+        if receipt.status != 'draft':
+            return Response({'error': 'Можно провести только черновик'}, status=400)
+
+        receipt.status = 'conducted'
+        receipt.conducted_by = request.user
+        receipt.save()
+
+        return Response(WarehouseReceiptSerializer(receipt).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """Отменить накладную"""
+        receipt = self.get_object()
+        if receipt.status == 'conducted':
+            return Response({'error': 'Нельзя отменить проведённую накладную'}, status=400)
+
+        receipt.status = 'cancelled'
+        receipt.save()
+
+        return Response(WarehouseReceiptSerializer(receipt).data)
+
+
+class WarehouseExpenseViewSet(viewsets.ModelViewSet):
+    queryset = WarehouseExpense.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return WarehouseExpenseCreateSerializer
+        return WarehouseExpenseSerializer
+
+    @action(detail=True, methods=['post'])
+    def conduct(self, request, pk=None):
+        expense = self.get_object()
+        if expense.status != 'draft':
+            return Response({'error': 'Можно провести только черновик'}, status=400)
+
+        # Проверяем наличие на складе
+        for item in expense.items.all():
+            if item.warehouse_item.quantity < item.quantity:
+                return Response({'error': f'Недостаточно {item.warehouse_item.name} на складе'}, status=400)
+
+        expense.status = 'conducted'
+        expense.conducted_by = request.user
+        expense.save()
+        return Response(WarehouseExpenseSerializer(expense).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        expense = self.get_object()
+        if expense.status == 'conducted':
+            return Response({'error': 'Нельзя отменить проведённую накладную'}, status=400)
+        expense.status = 'cancelled'
+        expense.save()
+        return Response(WarehouseExpenseSerializer(expense).data)
+
+
+class WarehouseTransferViewSet(viewsets.ModelViewSet):
+    queryset = WarehouseTransfer.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return WarehouseTransferCreateSerializer
+        return WarehouseTransferSerializer
+
+    @action(detail=True, methods=['post'])
+    def conduct(self, request, pk=None):
+        transfer = self.get_object()
+        if transfer.status != 'draft':
+            return Response({'error': 'Можно провести только черновик'}, status=400)
+
+        # Проверяем наличие на складе-отправителе
+        for item in transfer.items.all():
+            if item.warehouse_item.quantity < item.quantity:
+                return Response({'error': f'Недостаточно {item.warehouse_item.name} на складе-отправителе'}, status=400)
+
+        transfer.status = 'conducted'
+        transfer.conducted_by = request.user
+        transfer.save()
+        return Response(WarehouseTransferSerializer(transfer).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        transfer = self.get_object()
+        if transfer.status == 'conducted':
+            return Response({'error': 'Нельзя отменить проведённое перемещение'}, status=400)
+        transfer.status = 'cancelled'
+        transfer.save()
+        return Response(WarehouseTransferSerializer(transfer).data)
+
+
+class WarehouseStocktakeViewSet(viewsets.ModelViewSet):
+    queryset = WarehouseStocktake.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return WarehouseStocktakeCreateSerializer
+        return WarehouseStocktakeSerializer
+
+    @action(detail=True, methods=['post'])
+    def conduct(self, request, pk=None):
+        stocktake = self.get_object()
+        if stocktake.status != 'draft':
+            return Response({'error': 'Можно провести только черновик'}, status=400)
+
+        stocktake.status = 'conducted'
+        stocktake.conducted_by = request.user
+        stocktake.save()
+        return Response(WarehouseStocktakeSerializer(stocktake).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        stocktake = self.get_object()
+        if stocktake.status == 'conducted':
+            return Response({'error': 'Нельзя отменить проведённую инвентаризацию'}, status=400)
+        stocktake.status = 'cancelled'
+        stocktake.save()
+        return Response(WarehouseStocktakeSerializer(stocktake).data)
+
+
+class InventoryWriteOffViewSet(viewsets.ModelViewSet):
+    queryset = InventoryWriteOff.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return InventoryWriteOffCreateSerializer
+        return InventoryWriteOffSerializer
+
+    @action(detail=True, methods=['post'])
+    def conduct(self, request, pk=None):
+        writeoff = self.get_object()
+        if writeoff.status != 'draft':
+            return Response({'error': 'Можно провести только черновик'}, status=400)
+        writeoff.status = 'conducted'
+        writeoff.conducted_by = request.user
+        writeoff.save()
+        return Response(InventoryWriteOffSerializer(writeoff).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        writeoff = self.get_object()
+        if writeoff.status == 'conducted':
+            return Response({'error': 'Нельзя отменить проведённое списание'}, status=400)
+        writeoff.status = 'cancelled'
+        writeoff.save()
+        return Response(InventoryWriteOffSerializer(writeoff).data)
+
+
+class InventoryTransferViewSet(viewsets.ModelViewSet):
+    queryset = InventoryTransfer.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return InventoryTransferCreateSerializer
+        return InventoryTransferSerializer
+
+    @action(detail=True, methods=['post'])
+    def conduct(self, request, pk=None):
+        transfer = self.get_object()
+        if transfer.status != 'draft':
+            return Response({'error': 'Можно провести только черновик'}, status=400)
+        transfer.status = 'conducted'
+        transfer.conducted_by = request.user
+        transfer.save()
+        return Response(InventoryTransferSerializer(transfer).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        transfer = self.get_object()
+        if transfer.status == 'conducted':
+            return Response({'error': 'Нельзя отменить проведённое перемещение'}, status=400)
+        transfer.status = 'cancelled'
+        transfer.save()
+        return Response(InventoryTransferSerializer(transfer).data)
+
+
+class InventoryStocktakeViewSet(viewsets.ModelViewSet):
+    queryset = InventoryStocktake.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return InventoryStocktakeCreateSerializer
+        return InventoryStocktakeSerializer
+
+    @action(detail=True, methods=['post'])
+    def conduct(self, request, pk=None):
+        stocktake = self.get_object()
+        if stocktake.status != 'draft':
+            return Response({'error': 'Можно провести только черновик'}, status=400)
+        stocktake.status = 'conducted'
+        stocktake.conducted_by = request.user
+        stocktake.save()
+        return Response(InventoryStocktakeSerializer(stocktake).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        stocktake = self.get_object()
+        if stocktake.status == 'conducted':
+            return Response({'error': 'Нельзя отменить проведённую инвентаризацию'}, status=400)
+        stocktake.status = 'cancelled'
+        stocktake.save()
+        return Response(InventoryStocktakeSerializer(stocktake).data)
+
+
+class WorkOrderViewSet(viewsets.ModelViewSet):
+    queryset = WorkOrder.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=True, methods=['post'])
+    def issue(self, request, pk=None):
+        order = self.get_object()
+        if order.status != 'draft':
+            return Response({'error': 'Можно выдать только черновик'}, status=400)
+        order.status = 'issued'
+        order.issued_by = request.user
+        order.save()
+        return Response(WorkOrderSerializer(order).data)
+
+    def get_serializer_class(self):
+        return WorkOrderCreateSerializer if self.action=='create' else WorkOrderSerializer
+
+
+class CompletionActViewSet(viewsets.ModelViewSet):
+    queryset = CompletionAct.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        return CompletionActCreateSerializer if self.action == 'create' else CompletionActSerializer
+
+    @action(detail=True, methods=['post'])
+    def sign(self, request, pk=None):
+        act = self.get_object()
+        if act.status != 'draft':
+            return Response({'error': 'Можно подписать только черновик'}, status=400)
+        act.status = 'signed'
+        act.signed_by = request.user
+        act.save()
+        return Response(CompletionActSerializer(act).data)
+
+
+class InvoiceViewSet(viewsets.ModelViewSet):
+    queryset = Invoice.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        return InvoiceCreateSerializer if self.action == 'create' else InvoiceSerializer
+
+    @action(detail=True, methods=['post'])
+    def send(self, request, pk=None):
+        invoice = self.get_object()
+        if invoice.status != 'draft':
+            return Response({'error': 'Можно отправить только черновик'}, status=400)
+        invoice.status = 'sent'
+        invoice.save()
+        return Response(InvoiceSerializer(invoice).data)
+
+    @action(detail=True, methods=['post'])
+    def mark_paid(self, request, pk=None):
+        invoice = self.get_object()
+        if invoice.status not in ['draft', 'sent']:
+            return Response({'error': 'Нельзя отметить как оплаченный'}, status=400)
+        invoice.status = 'paid'
+        invoice.save()
+        return Response(InvoiceSerializer(invoice).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        invoice = self.get_object()
+        if invoice.status == 'paid':
+            return Response({'error': 'Нельзя отменить оплаченный счёт'}, status=400)
+        invoice.status = 'cancelled'
+        invoice.save()
+        return Response(InvoiceSerializer(invoice).data)
+
+
+class InvoiceFacturaViewSet(viewsets.ModelViewSet):
+    queryset = InvoiceFactura.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return InvoiceFacturaCreateSerializer
+        return InvoiceFacturaSerializer
+
+    @action(detail=True, methods=['post'])
+    def issue(self, request, pk=None):
+        factura = self.get_object()
+        if factura.status != 'draft':
+            return Response({'error': 'Можно выставить только черновик'}, status=400)
+        factura.status = 'issued'
+        factura.save()
+        return Response(InvoiceFacturaSerializer(factura).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        factura = self.get_object()
+        if factura.status == 'issued':
+            return Response({'error': 'Нельзя отменить выставленный счёт-фактуру'}, status=400)
+        factura.status = 'cancelled'
+        factura.save()
+        return Response(InvoiceFacturaSerializer(factura).data)

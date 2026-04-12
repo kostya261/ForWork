@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if transfer %}Редактирование{% else %}Новое{% endif %} перемещение | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:warehouse_transfer_list' %}">Перемещения</a></li>
+                    <li class="breadcrumb-item active">{% if transfer %}Редактирование{% else %}Новое{% endif %}</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">{% if transfer %}Редактирование{% else %}Создание{% endif %} перемещения</h2>
+        </div>
+        <a href="{% if transfer %}{% url 'frontend:warehouse_transfer_detail' transfer.pk %}{% else %}{% url 'frontend:warehouse_transfer_list' %}{% endif %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg me-1"></i>Отмена
+        </a>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <form id="transferForm">
+                {% csrf_token %}
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label">Склад-отправитель <span class="text-danger">*</span></label>
+                        <select name="from_department" id="from_department" class="form-select" required>
+                            <option value="">Выберите склад</option>
+                            {% for d in departments %}
+                                <option value="{{ d.id }}" {% if transfer.from_department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Склад-получатель <span class="text-danger">*</span></label>
+                        <select name="to_department" id="to_department" class="form-select" required>
+                            <option value="">Выберите склад</option>
+                            {% for d in departments %}
+                                <option value="{{ d.id }}" {% if transfer.to_department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Дата перемещения</label>
+                        <input type="date" name="transfer_date" id="transfer_date" class="form-control" value="{{ transfer.transfer_date|date:'Y-m-d'|default:'' }}">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Комментарий</label>
+                        <textarea name="comment" id="comment" class="form-control" rows="2">{{ transfer.comment|default:'' }}</textarea>
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Товары</h5>
+
+                <div id="itemsContainer"></div>
+
+                <button type="button" class="btn btn-outline-primary mt-3" onclick="addItemRow()">
+                    <i class="bi bi-plus-lg me-1"></i>Добавить товар
+                </button>
+
+                <hr class="my-4">
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-check-lg me-1"></i>{% if transfer %}Сохранить{% else %}Создать{% endif %}
+                    </button>
+                    <a href="{% if transfer %}{% url 'frontend:warehouse_transfer_detail' transfer.pk %}{% else %}{% url 'frontend:warehouse_transfer_list' %}{% endif %}" class="btn btn-outline-secondary">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const transferId = {% if transfer %}{{ transfer.pk }}{% else %}null{% endif %};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    const warehouseItems = [
+        {% for item in warehouse_items %}
+        { id: {{ item.id }}, name: "{{ item.name|escapejs }}", article: "{{ item.article|default:''|escapejs }}", unit: "{{ item.get_unit_display }}" }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    function addItemRow() {
+        const container = document.getElementById('itemsContainer');
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 align-items-end item-row';
+        
+        let options = '<option value="">Выберите товар</option>';
+        warehouseItems.forEach(function(item) {
+            options += '<option value="' + item.id + '">' + item.name + (item.article ? ' (' + item.article + ')' : '') + '</option>';
+        });
+        
+        row.innerHTML = `
+            <div class="col-md-8"><select class="form-select item-select" required>${options}</select></div>
+            <div class="col-md-3"><input type="number" step="0.001" class="form-control item-quantity" placeholder="Кол-во" value="1" required></div>
+            <div class="col-md-1"><button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.item-row').remove();"><i class="bi bi-trash"></i></button></div>
+        `;
+        container.appendChild(row);
+    }
+
+    document.getElementById('transferForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Сохранение...';
+
+        const items = [];
+        document.querySelectorAll('.item-row').forEach(function(row) {
+            const select = row.querySelector('.item-select');
+            const q = row.querySelector('.item-quantity');
+            if (select.value && q.value) {
+                items.push({ warehouse_item_id: parseInt(select.value), quantity: parseFloat(q.value) });
+            }
+        });
+
+        if (items.length === 0) {
+            alert('Добавьте хотя бы один товар');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+            return;
+        }
+
+        const data = {
+            from_department: parseInt(document.getElementById('from_department').value),
+            to_department: parseInt(document.getElementById('to_department').value),
+            transfer_date: document.getElementById('transfer_date').value || new Date().toISOString().split('T')[0],
+            comment: document.getElementById('comment').value || '',
+            items: items
+        };
+
+        const url = transferId ? '/api/documents/transfers/' + transferId + '/' : '/api/documents/transfers/';
+        const method = transferId ? 'PATCH' : 'POST';
+
+        try {
+            const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }, body: JSON.stringify(data) });
+            const responseText = await response.text();
+            if (!response.ok) throw new Error(responseText);
+            const result = JSON.parse(responseText);
+            const newId = result.id || result.pk;
+            if (!newId) { alert('ID не получен'); window.location.href = '/documents/transfers/'; return; }
+            window.location.href = '/documents/transfers/' + newId + '/';
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+
+    {% if transfer %}
+        {% for item in transfer.items.all %}
+            (function() {
+                addItemRow();
+                const rows = document.querySelectorAll('.item-row');
+                const lastRow = rows[rows.length - 1];
+                lastRow.querySelector('.item-select').value = '{{ item.warehouse_item_id }}';
+                lastRow.querySelector('.item-quantity').value = '{{ item.quantity }}';
+            })();
+        {% endfor %}
+    {% else %}
+        addItemRow();
+    {% endif %}
+</script>
+{% endblock %}

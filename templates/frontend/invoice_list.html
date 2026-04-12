@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block title %}Счета на оплату | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-light mb-0">
+            <i class="bi bi-receipt me-2"></i>Счета на оплату
+        </h2>
+        <a href="{% url 'frontend:invoice_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>Создать счёт
+        </a>
+    </div>
+    
+    <!-- Статистика -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card bg-light"><div class="card-body text-center py-2"><h5 class="mb-0">{{ stats.total }}</h5><small class="text-muted">Всего</small></div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning bg-opacity-10"><div class="card-body text-center py-2"><h5 class="mb-0 text-warning">{{ stats.draft }}</h5><small class="text-warning">Черновики</small></div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info bg-opacity-10"><div class="card-body text-center py-2"><h5 class="mb-0 text-info">{{ stats.sent }}</h5><small class="text-info">Отправлены</small></div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success bg-opacity-10"><div class="card-body text-center py-2"><h5 class="mb-0 text-success">{{ stats.paid }}</h5><small class="text-success">Оплачены</small></div></div>
+        </div>
+    </div>
+    
+    <!-- Фильтр -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <select name="48" class="form-select">
+                        <option value="">Все статусы</option>
+                        <option value="draft" {% if current_filters.status == 'draft' %}selected{% endif %}>Черновик</option>
+                        <option value="sent" {% if current_filters.status == 'sent' %}selected{% endif %}>Отправлен</option>
+                        <option value="paid" {% if current_filters.status == 'paid' %}selected{% endif %}>Оплачен</option>
+                        <option value="cancelled" {% if current_filters.status == 'cancelled' %}selected{% endif %}>Отменён</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Фильтр</button>
+                    {% if current_filters.status %}
+                        <a href="{% url 'frontend:invoice_list' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Таблица -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Номер</th>
+                        <th>Дата</th>
+                        <th>Контрагент</th>
+                        <th>Задача</th>
+                        <th>Сумма</th>
+                        <th>Статус</th>
+                        <th>Создал</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inv in invoices %}
+                    <tr class="cursor-pointer" onclick="window.location='{% url 'frontend:invoice_detail' inv.pk %}'">
+                        <td>{{ inv.number }}</td>
+                        <td>{{ inv.invoice_date|date:"d.m.Y" }}</td>
+                        <td>{{ inv.counterparty.name }}</td>
+                        <td>{% if inv.task %}<a href="{% url 'frontend:task_detail' inv.task.pk %}">#{{ inv.task.pk }}</a>{% else %}—{% endif %}</td>
+                        <td>{{ inv.total_sum|floatformat:2 }} ₽</td>
+                        <td>
+                            <span class="badge {% if inv.status == 'draft' %}bg-warning{% elif inv.status == 'sent' %}bg-info{% elif inv.status == 'paid' %}bg-success{% else %}bg-secondary{% endif %}">
+                                {{ inv.get_status_display }}
+                            </span>
+                        </td>
+                        <td>{{ inv.created_by.get_full_name|default:inv.created_by.username }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-receipt fs-1"></i>
+                            <p class="mt-2">Нет счетов</p>
+                            <a href="{% url 'frontend:invoice_create' %}" class="btn btn-sm btn-primary">Создать счёт</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Пагинация -->
+    {% if invoices.paginator.num_pages > 1 %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if invoices.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page={{ invoices.previous_page_number }}{% if current_filters.status %}&status={{ current_filters.status }}{% endif %}"><i class="bi bi-chevron-left"></i></a></li>
+            {% endif %}
+            <li class="page-item active"><span class="page-link">{{ invoices.number }}</span></li>
+            {% if invoices.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ invoices.next_page_number }}{% if current_filters.status %}&status={{ current_filters.status }}{% endif %}"><i class="bi bi-chevron-right"></i></a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

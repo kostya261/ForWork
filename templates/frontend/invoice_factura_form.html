@@ -1,0 +1,270 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if factura %}Редактирование{% else %}Новый{% endif %} счёт-фактура | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:invoice_factura_list' %}">Счета-фактуры</a></li>
+                    {% if factura %}
+                        <li class="breadcrumb-item"><a href="{% url 'frontend:invoice_factura_detail' factura.pk %}">{{ factura.number }}</a></li>
+                        <li class="breadcrumb-item active">Редактирование</li>
+                    {% else %}
+                        <li class="breadcrumb-item active">Новый</li>
+                    {% endif %}
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">{% if factura %}Редактирование{% else %}Создание{% endif %} счёта-фактуры</h2>
+        </div>
+        <a href="{% if factura %}{% url 'frontend:invoice_factura_detail' factura.pk %}{% else %}{% url 'frontend:invoice_factura_list' %}{% endif %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg me-1"></i>Отмена
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form id="facturaForm">
+                {% csrf_token %}
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">Контрагент <span class="text-danger">*</span></label>
+                        <select name="counterparty" id="counterparty" class="form-select" required>
+                            <option value="">Выберите контрагента</option>
+                            {% for c in counterparties %}
+                                <option value="{{ c.id }}" {% if factura.counterparty_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Основание</label>
+                        <select name="basis_type" id="basis_type" class="form-select" onchange="toggleBasisSelect()">
+                            <option value="">Не указано</option>
+                            <option value="expense" {% if factura.expense_id %}selected{% endif %}>Расходная накладная</option>
+                            <option value="act" {% if factura.completion_act_id %}selected{% endif %}>Акт выполненных работ</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6" id="expense_select" style="display: {% if factura.expense_id %}block{% else %}none{% endif %}">
+                        <label class="form-label">Расходная накладная</label>
+                        <select name="expense" id="expense" class="form-select">
+                            <option value="">Выберите накладную</option>
+                            {% for e in expenses %}
+                                <option value="{{ e.id }}" {% if factura.expense_id == e.id %}selected{% endif %}>
+                                    {{ e.number }} от {{ e.expense_date|date:"d.m.Y" }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6" id="act_select" style="display: {% if factura.completion_act_id %}block{% else %}none{% endif %}">
+                        <label class="form-label">Акт выполненных работ</label>
+                        <select name="completion_act" id="completion_act" class="form-select">
+                            <option value="">Выберите акт</option>
+                            {% for a in acts %}
+                                <option value="{{ a.id }}" {% if factura.completion_act_id == a.id %}selected{% endif %}>
+                                    {{ a.number }} от {{ a.completion_date|date:"d.m.Y" }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Дата счёта-фактуры</label>
+                        <input type="date" name="factura_date" id="factura_date" class="form-control"
+                               value="{% if factura %}{{ factura.factura_date|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Комментарий</label>
+                        <textarea name="comment" id="comment" class="form-control" rows="2">{{ factura.comment|default:'' }}</textarea>
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Позиции</h5>
+                <div id="itemsContainer"></div>
+                <button type="button" class="btn btn-outline-primary mt-2" onclick="addItemRow()">
+                    <i class="bi bi-plus-lg me-1"></i>Добавить позицию
+                </button>
+
+                <hr class="my-4">
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5>
+                        Итого без НДС: <span id="totalSum">0.00</span> ₽ |
+                        НДС: <span id="totalVat">0.00</span> ₽ |
+                        Всего: <span id="totalWithVat">0.00</span> ₽
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-check-lg me-1"></i>{% if factura %}Сохранить{% else %}Создать{% endif %}
+                        </button>
+                        <a href="{% if factura %}{% url 'frontend:invoice_factura_detail' factura.pk %}{% else %}{% url 'frontend:invoice_factura_list' %}{% endif %}" class="btn btn-outline-secondary">Отмена</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const facturaId = {% if factura %}{{ factura.pk }}{% else %}null{% endif %};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    function toggleBasisSelect() {
+        const type = document.getElementById('basis_type').value;
+        document.getElementById('expense_select').style.display = type === 'expense' ? 'block' : 'none';
+        document.getElementById('act_select').style.display = type === 'act' ? 'block' : 'none';
+    }
+
+    function addItemRow(itemData = null) {
+        const container = document.getElementById('itemsContainer');
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 align-items-end item-row';
+
+        const desc = itemData ? itemData.description : '';
+        const qty = itemData ? itemData.quantity : 1;
+        const unit = itemData ? itemData.unit : 'шт';
+        const price = itemData ? itemData.price : '0.00';
+        const vat = itemData ? itemData.vat_rate : 20;
+
+        row.innerHTML = `
+            <div class="col-md-4">
+                <input type="text" class="form-control item-desc" placeholder="Наименование" value="${desc}" required>
+            </div>
+            <div class="col-md-1">
+                <input type="number" step="0.001" class="form-control item-qty" value="${qty}" oninput="calculateTotal()" required>
+            </div>
+            <div class="col-md-1">
+                <input type="text" class="form-control item-unit" value="${unit}" placeholder="ед.">
+            </div>
+            <div class="col-md-1">
+                <input type="number" step="0.01" class="form-control item-price" value="${price}" oninput="calculateTotal()" required>
+            </div>
+            <div class="col-md-1">
+                <input type="number" step="0.01" class="form-control item-vat" value="${vat}" oninput="calculateTotal()">
+            </div>
+            <div class="col-md-2">
+                <span class="form-control-plaintext item-total">0.00 ₽</span>
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.item-row').remove(); calculateTotal();">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+
+        container.appendChild(row);
+        calculateTotal();
+    }
+
+    function calculateTotal() {
+        let sum = 0, vat = 0;
+        document.querySelectorAll('.item-row').forEach(row => {
+            const q = parseFloat(row.querySelector('.item-qty').value) || 0;
+            const p = parseFloat(row.querySelector('.item-price').value) || 0;
+            const v = parseFloat(row.querySelector('.item-vat').value) || 0;
+            const t = Math.round(q * p * 100) / 100;
+            const va = Math.round(t * v) / 100;
+            row.querySelector('.item-total').textContent = (t + va).toFixed(2) + ' ₽';
+            sum += t;
+            vat += va;
+        });
+        sum = Math.round(sum * 100) / 100;
+        vat = Math.round(vat * 100) / 100;
+        document.getElementById('totalSum').textContent = sum.toFixed(2);
+        document.getElementById('totalVat').textContent = vat.toFixed(2);
+        document.getElementById('totalWithVat').textContent = (sum + vat).toFixed(2);
+    }
+
+    document.getElementById('facturaForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Сохранение...';
+
+        const items = [];
+        document.querySelectorAll('.item-row').forEach(row => {
+            const desc = row.querySelector('.item-desc').value;
+            const qty = row.querySelector('.item-qty').value;
+            const unit = row.querySelector('.item-unit').value;
+            const price = row.querySelector('.item-price').value;
+            const vat = row.querySelector('.item-vat').value;
+
+            if (desc && qty && price) {
+                items.push({
+                    description: desc,
+                    quantity: parseFloat(qty),
+                    unit: unit || 'шт',
+                    price: parseFloat(price),
+                    vat_rate: parseFloat(vat) || 20
+                });
+            }
+        });
+
+        if (items.length === 0) {
+            alert('Добавьте хотя бы одну позицию');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+            return;
+        }
+
+        const data = {
+            counterparty: parseInt(document.getElementById('counterparty').value),
+            factura_date: document.getElementById('factura_date').value,
+            comment: document.getElementById('comment').value || '',
+            items: items
+        };
+
+        const basisType = document.getElementById('basis_type').value;
+        if (basisType === 'expense') {
+            data.expense = parseInt(document.getElementById('expense').value);
+        } else if (basisType === 'act') {
+            data.completion_act = parseInt(document.getElementById('completion_act').value);
+        }
+
+        const url = facturaId ? `/api/documents/invoice-facturas/${facturaId}/` : '/api/documents/invoice-facturas/';
+        const method = facturaId ? 'PATCH' : 'POST';
+
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text);
+            }
+
+            const result = await response.json();
+            window.location.href = '/documents/invoice-facturas/' + (result.id || facturaId) + '/';
+
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+
+    // Загружаем существующие позиции при редактировании
+    {% if factura %}
+        {% for item in factura.items.all %}
+            addItemRow({
+                description: "{{ item.description|escapejs }}",
+                quantity: {{ item.quantity }},
+                unit: "{{ item.unit|escapejs }}",
+                price: {{ item.price }},
+                vat_rate: {{ item.vat_rate }}
+            });
+        {% endfor %}
+    {% else %}
+        addItemRow();
+    {% endif %}
+</script>
+{% endblock %}

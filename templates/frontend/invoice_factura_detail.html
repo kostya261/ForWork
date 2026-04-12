@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+
+{% block title %}Счёт-фактура {{ factura.number }} | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:invoice_factura_list' %}">Счета-фактуры</a></li>
+                    <li class="breadcrumb-item active">{{ factura.number }}</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">Счёт-фактура №{{ factura.number }}</h2>
+        </div>
+        <div class="d-flex gap-2">
+
+            <a href="{% url 'frontend:invoice_factura_pdf' factura.pk %}" class="btn btn-outline-secondary" target="_blank">
+                <i class="bi bi-file-pdf"></i> PDF
+            </a>
+
+            {% if factura.status == 'draft' %}
+                <a href="{% url 'frontend:invoice_factura_edit' factura.pk %}" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil"></i> Редактировать
+                </a>
+                <button class="btn btn-success" onclick="issueFactura()">
+                    <i class="bi bi-check-lg"></i> Выставить
+                </button>
+                <button class="btn btn-outline-danger" onclick="deleteFactura()">
+                    <i class="bi bi-trash"></i> Удалить
+                </button>
+            {% elif factura.status != 'cancelled' %}
+                <button class="btn btn-outline-danger" onclick="cancelFactura()">
+                    <i class="bi bi-x-lg"></i> Отменить
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header">Основная информация</div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-2 text-muted">Контрагент</div>
+                        <div class="col-md-10">
+                            <a href="{% url 'frontend:counterparty_detail' factura.counterparty.pk %}">
+                                {{ factura.counterparty.name }}
+                            </a>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-2 text-muted">Основание</div>
+                        <div class="col-md-10">
+                            {% if factura.expense %}
+                                <a href="{% url 'frontend:warehouse_expense_detail' factura.expense.pk %}">
+                                    Расходная накладная №{{ factura.expense.number }} от {{ factura.expense.expense_date|date:"d.m.Y" }}
+                                </a>
+                            {% elif factura.completion_act %}
+                                <a href="{% url 'frontend:completion_act_detail' factura.completion_act.pk %}">
+                                    Акт №{{ factura.completion_act.number }} от {{ factura.completion_act.completion_date|date:"d.m.Y" }}
+                                </a>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-2 text-muted">Дата</div>
+                        <div class="col-md-10">{{ factura.factura_date|date:"d.m.Y" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-2 text-muted">Статус</div>
+                        <div class="col-md-10">
+                            <span class="badge {% if factura.status == 'draft' %}bg-warning{% elif factura.status == 'issued' %}bg-success{% else %}bg-secondary{% endif %} px-3 py-2">
+                                {{ factura.get_status_display }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-2 text-muted">Комментарий</div>
+                        <div class="col-md-10">{{ factura.comment|linebreaks|default:"—" }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Позиции</div>
+                <div class="card-body p-0">
+                    <table class="table mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Наименование</th>
+                                <th>Кол-во</th>
+                                <th>Ед.</th>
+                                <th>Цена без НДС</th>
+                                <th>Сумма без НДС</th>
+                                <th>НДС, %</th>
+                                <th>НДС</th>
+                                <th>Всего с НДС</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in factura.items.all %}
+                            <tr>
+                                <td>{{ item.description }}</td>
+                                <td>{{ item.quantity }}</td>
+                                <td>{{ item.unit }}</td>
+                                <td>{{ item.price|floatformat:2 }} ₽</td>
+                                <td>{{ item.total|floatformat:2 }} ₽</td>
+                                <td>{{ item.vat_rate }}%</td>
+                                <td>{{ item.vat_amount|floatformat:2 }} ₽</td>
+                                <td>{{ item.total_with_vat|floatformat:2 }} ₽</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center py-3 text-muted">Нет позиций</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="4"></th>
+                                <th>{{ factura.total_sum|floatformat:2 }} ₽</th>
+                                <th></th>
+                                <th>{{ factura.total_vat|floatformat:2 }} ₽</th>
+                                <th>{{ factura.total_with_vat|floatformat:2 }} ₽</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const facturaId = {{ factura.pk }};
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    async function issueFactura() {
+        if (!confirm('Выставить счёт-фактуру?')) return;
+        try {
+            const r = await fetch(`/api/documents/invoice-facturas/${facturaId}/issue/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrf }
+            });
+            if (r.ok) location.reload();
+            else alert('Ошибка');
+        } catch(e) {
+            alert('Ошибка: ' + e.message);
+        }
+    }
+
+    async function cancelFactura() {
+        if (!confirm('Отменить счёт-фактуру?')) return;
+        try {
+            const r = await fetch(`/api/documents/invoice-facturas/${facturaId}/cancel/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrf }
+            });
+            if (r.ok) location.reload();
+            else alert('Ошибка');
+        } catch(e) {
+            alert('Ошибка: ' + e.message);
+        }
+    }
+
+    async function deleteFactura() {
+        if (!confirm('Удалить счёт-фактуру?')) return;
+        try {
+            const r = await fetch(`/api/documents/invoice-facturas/${facturaId}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrf }
+            });
+            if (r.ok) window.location.href = '/documents/invoice-facturas/';
+            else alert('Ошибка');
+        } catch(e) {
+            alert('Ошибка: ' + e.message);
+        }
+    }
+</script>
+{% endblock %}

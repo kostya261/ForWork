@@ -8,10 +8,19 @@ from django.contrib import messages
 from tasks.models import Task
 from tasks.serializers import TaskListSerializer
 from counterparties.models import Counterparty
+from departments.models import Department
 from warehouse.models import WarehouseItem
 from inventory.models import InventoryItem
-from documents.models import MaterialRequest, InventoryIssue
+from documents.models import MaterialRequest, InventoryIssue, WarehouseReceipt, WarehouseExpense, WarehouseTransfer, \
+    WarehouseStocktake, InventoryWriteOff, InventoryTransfer, InventoryStocktake, WorkOrder, CompletionAct, Invoice, \
+    InvoiceFactura
 from django.contrib.auth import get_user_model
+
+# PDF
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+from weasyprint import HTML
+import tempfile
 
 User = get_user_model()
 
@@ -22,9 +31,20 @@ def dashboard(request):
     today = timezone.now().date()
 
     # Мои задачи
-    my_tasks = Task.objects.filter(
-        Q(responsible=user) | Q(co_executors=user)
-    ).exclude(status__in=['completed', 'closed', 'cancelled']).distinct()
+    if user.is_staff or user.is_superuser:
+        # Админ видит все задачи
+        my_tasks = Task.objects.exclude(
+            status__in=['completed', 'closed', 'cancelled']
+        ).distinct()
+    else:
+        # Обычный пользователь видит только свои
+        my_tasks = Task.objects.filter(
+            Q(responsible=user) | Q(co_executors=user) | Q(created_by=user)
+        ).exclude(status__in=['completed', 'closed', 'cancelled']).distinct()
+
+    my_tasks_count = my_tasks.count()
+    overdue_tasks = my_tasks.filter(deadline__lt=today).count()
+    recent_tasks = my_tasks.order_by('-created_at')[:15]
 
     my_tasks_count = my_tasks.count()
     overdue_tasks = my_tasks.filter(deadline__lt=today).count()
@@ -42,7 +62,7 @@ def dashboard(request):
                    InventoryIssue.objects.filter(status__in=['pending', 'approved']).count()
 
     # Последние задачи
-    recent_tasks = my_tasks.order_by('-created_at')[:5]
+    recent_tasks = my_tasks.order_by('-created_at')[:15]
 
     context = {
         'today': today,
@@ -590,16 +610,186 @@ def user_detail(request, pk):
     return render(request, 'frontend/user_detail.html', context)
 
 
+@login_required
+def chat_index(request):
+    """Страница чата"""
+    return render(request, 'frontend/chat.html')
+
+
+@login_required
+def department_list(request):
+    """Список отделов (дерево)"""
+    departments = Department.objects.all().select_related('parent', 'head')
+
+    # Строим дерево
+    def build_tree(parent=None):
+        result = []
+        for dept in departments.filter(parent=parent):
+            result.append({
+                'id': dept.id,
+                'name': dept.name,
+                'description': dept.description,
+                'head': dept.head,
+                'legal_address': dept.legal_address,
+                'actual_address': dept.actual_address,
+                'children': build_tree(dept)
+            })
+        return result
+
+    tree = build_tree()
+
+    context = {
+        'departments': departments,
+        'tree': tree,
+    }
+
+    return render(request, 'frontend/department_list.html', context)
+
+
+@login_required
+def department_detail(request, pk):
+    """Детальная страница отдела"""
+    department = get_object_or_404(Department, pk=pk)
+    employees = department.users.all().select_related('position')
+
+    context = {
+        'department': department,
+        'employees': employees,
+    }
+
+    return render(request, 'frontend/department_detail.html', context)
+
+
+@login_required
+def department_create(request):
+    parents = Department.objects.all()
+    users = User.objects.filter(is_active=True)
+    context = {'parents': parents, 'users': users}
+    return render(request, 'frontend/department_form.html', context)
+
+
+@login_required
+def department_edit(request, pk):
+    department = get_object_or_404(Department, pk=pk)
+    parents = Department.objects.exclude(pk=pk)  # исключаем сам себя
+    users = User.objects.filter(is_active=True)
+    context = {'department': department, 'parents': parents, 'users': users}
+    return render(request, 'frontend/department_form.html', context)
+
+
+# Работа с документацией
+
+@login_required
+def warehouse_receipt_list(request):
+    """Список приходных накладных"""
+    receipts = WarehouseReceipt.objects.all().select_related('supplier', 'department', 'created_by')
+
+    # Фильтры
+    status_filter = request.GET.get('status', '')
+    supplier_filter = request.GET.get('supplier', '')
+    search_query = request.GET.get('search', '')
+
+    if status_filter:
+        receipts = receipts.filter(status=status_filter)
+    if supplier_filter:
+        receipts = receipts.filter(supplier_id=supplier_filter)
+    if search_query:
+        receipts = receipts.filter(
+            Q(number__icontains=search_query) |
+            Q(supplier__name__icontains=search_query)
+        )
+
+    # Статистика
+    stats = {
+        'total': receipts.count(),
+        'draft': receipts.filter(status='draft').count(),
+        'conducted': receipts.filter(status='conducted').count(),
+    }
+
+    # Справочники для фильтров
+    suppliers = Counterparty.objects.filter(type__in=['supplier', 'client', 'partner'])
+
+    # Пагинация
+    from django.core.paginator import Paginator
+    page = request.GET.get('page', 1)
+    paginator = Paginator(receipts, 20)
+    receipts_page = paginator.get_page(page)
+
+    context = {
+        'receipts': receipts_page,
+        'stats': stats,
+        'suppliers': suppliers,
+        'current_filters': {
+            'status': status_filter,
+            'supplier': supplier_filter,
+            'search': search_query,
+        }
+    }
+
+    return render(request, 'frontend/warehouse_receipt_list.html', context)
+
+
+@login_required
+def warehouse_receipt_detail(request, pk):
+    """Детальная страница приходной накладной"""
+    receipt = get_object_or_404(
+        WarehouseReceipt.objects.select_related('supplier', 'department', 'created_by', 'conducted_by')
+        .prefetch_related('items__warehouse_item'),
+        pk=pk
+    )
+
+    context = {
+        'receipt': receipt,
+    }
+
+    return render(request, 'frontend/warehouse_receipt_detail.html', context)
+
+
+@login_required
+def warehouse_receipt_create(request):
+    """Создание приходной накладной"""
+    suppliers = Counterparty.objects.filter(type__in=['supplier', 'client', 'partner'])
+    departments = Department.objects.all()
+    warehouse_items = WarehouseItem.objects.all()
+
+    context = {
+        'suppliers': suppliers,
+        'departments': departments,
+        'warehouse_items': warehouse_items,
+    }
+
+    return render(request, 'frontend/warehouse_receipt_form.html', context)
+
+
+@login_required
+def warehouse_receipt_edit(request, pk):
+    """Редактирование приходной накладной"""
+    receipt = get_object_or_404(WarehouseReceipt, pk=pk)
+
+    # Редактировать можно только черновики
+    if receipt.status != 'draft':
+        messages.error(request, 'Можно редактировать только черновики')
+        return redirect('frontend:warehouse_receipt_detail', pk=pk)
+
+    suppliers = Counterparty.objects.filter(type__in=['supplier', 'client', 'partner'])
+    departments = Department.objects.all()
+    warehouse_items = WarehouseItem.objects.all()
+
+    context = {
+        'receipt': receipt,
+        'suppliers': suppliers,
+        'departments': departments,
+        'warehouse_items': warehouse_items,
+    }
+
+    return render(request, 'frontend/warehouse_receipt_form.html', context)
+
+
 # Остальные заглушки
 
 @login_required
 def material_requests_list(request):
     return render(request, 'frontend/stub.html', {'title': 'Документы'})
-
-
-@login_required
-def chat_index(request):
-    return render(request, 'frontend/stub.html', {'title': 'Чат'})
 
 
 @login_required
@@ -614,3 +804,478 @@ def task_edit(request, pk):
     }
 
     return render(request, 'frontend/task_edit.html', context)
+
+
+@login_required
+def warehouse_expense_list(request):
+    expenses = WarehouseExpense.objects.all().select_related('department', 'counterparty', 'created_by')
+    stats = {'total': expenses.count(), 'draft': expenses.filter(status='draft').count(),
+             'conducted': expenses.filter(status='conducted').count()}
+    departments = Department.objects.all()
+    return render(request, 'frontend/warehouse_expense_list.html',
+                  {'expenses': expenses, 'stats': stats, 'departments': departments})
+
+
+@login_required
+def warehouse_expense_detail(request, pk):
+    expense = get_object_or_404(WarehouseExpense.objects.select_related('department', 'counterparty', 'created_by',
+                                                                        'conducted_by').prefetch_related(
+        'items__warehouse_item'), pk=pk)
+    return render(request, 'frontend/warehouse_expense_detail.html', {'expense': expense})
+
+
+@login_required
+def warehouse_expense_create(request):
+    departments = Department.objects.all()
+    counterparties = Counterparty.objects.all()
+    warehouse_items = WarehouseItem.objects.all()
+    tasks = Task.objects.filter(status__in=['new', 'assigned', 'in_progress'])
+    return render(request, 'frontend/warehouse_expense_form.html',
+                  {'departments': departments, 'counterparties': counterparties,
+                   'warehouse_items': warehouse_items, 'tasks': tasks})
+
+
+@login_required
+def warehouse_transfer_list(request):
+    transfers = WarehouseTransfer.objects.all().select_related('from_department', 'to_department', 'created_by')
+    stats = {'total': transfers.count(), 'draft': transfers.filter(status='draft').count(),
+             'conducted': transfers.filter(status='conducted').count()}
+    return render(request, 'frontend/warehouse_transfer_list.html', {'transfers': transfers, 'stats': stats})
+
+
+@login_required
+def warehouse_transfer_detail(request, pk):
+    transfer = get_object_or_404(
+        WarehouseTransfer.objects.select_related('from_department', 'to_department', 'created_by',
+                                                 'conducted_by').prefetch_related('items__warehouse_item'), pk=pk)
+    return render(request, 'frontend/warehouse_transfer_detail.html', {'transfer': transfer})
+
+
+@login_required
+def warehouse_transfer_create(request):
+    departments = Department.objects.all()
+    warehouse_items = WarehouseItem.objects.all()
+    return render(request, 'frontend/warehouse_transfer_form.html',
+                  {'departments': departments, 'warehouse_items': warehouse_items})
+
+
+@login_required
+def warehouse_stocktake_list(request):
+    stocktakes = WarehouseStocktake.objects.all().select_related('department', 'created_by')
+    stats = {'total': stocktakes.count(), 'draft': stocktakes.filter(status='draft').count(),
+             'conducted': stocktakes.filter(status='conducted').count()}
+    return render(request, 'frontend/warehouse_stocktake_list.html', {'stocktakes': stocktakes, 'stats': stats})
+
+
+@login_required
+def warehouse_stocktake_detail(request, pk):
+    stocktake = get_object_or_404(
+        WarehouseStocktake.objects.select_related('department', 'created_by', 'conducted_by').prefetch_related(
+            'items__warehouse_item'), pk=pk)
+    return render(request, 'frontend/warehouse_stocktake_detail.html', {'stocktake': stocktake})
+
+
+@login_required
+def warehouse_stocktake_create(request):
+    departments = Department.objects.all()
+    warehouse_items = WarehouseItem.objects.all()
+    return render(request, 'frontend/warehouse_stocktake_form.html',
+                  {'departments': departments, 'warehouse_items': warehouse_items})
+
+
+@login_required
+def inventory_issue_list(request):
+    """Список выдач инвентаря"""
+    issues = InventoryIssue.objects.all().select_related('department', 'task', 'created_by')
+
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        issues = issues.filter(status=status_filter)
+
+    stats = {
+        'total': issues.count(),
+        'draft': issues.filter(status='draft').count(),
+        'issued': issues.filter(status='issued').count(),
+        'returned': issues.filter(status='returned').count(),
+    }
+
+    from django.core.paginator import Paginator
+    page = request.GET.get('page', 1)
+    paginator = Paginator(issues, 20)
+    issues_page = paginator.get_page(page)
+
+    context = {
+        'issues': issues_page,
+        'stats': stats,
+        'current_filters': {'status': status_filter},
+    }
+    return render(request, 'frontend/inventory_issue_list.html', context)
+
+
+@login_required
+def inventory_issue_detail(request, pk):
+    """Детальная страница выдачи инвентаря"""
+    issue = get_object_or_404(
+        InventoryIssue.objects.select_related('department', 'task', 'created_by', 'approved_by', 'issued_by')
+        .prefetch_related('items__inventory_item', 'items__responsible'),
+        pk=pk
+    )
+    return render(request, 'frontend/inventory_issue_detail.html', {'issue': issue})
+
+
+@login_required
+def inventory_issue_create(request):
+    """Создание выдачи инвентаря"""
+    departments = Department.objects.all()
+    tasks = Task.objects.filter(status__in=['new', 'assigned', 'in_progress'])
+    inventory_items = InventoryItem.objects.filter(status='active')  # ← убрал responsible__isnull
+    users = User.objects.filter(is_active=True)
+
+    context = {
+        'departments': departments,
+        'tasks': tasks,
+        'inventory_items': inventory_items,
+        'users': users,
+    }
+    return render(request, 'frontend/inventory_issue_form.html', context)
+
+
+@login_required
+def inventory_writeoff_list(request):
+    writeoffs = InventoryWriteOff.objects.all().select_related('department', 'created_by')
+    stats = {'total': writeoffs.count(), 'draft': writeoffs.filter(status='draft').count(),
+             'conducted': writeoffs.filter(status='conducted').count()}
+    return render(request, 'frontend/inventory_writeoff_list.html', {'writeoffs': writeoffs, 'stats': stats})
+
+
+@login_required
+def inventory_writeoff_detail(request, pk):
+    writeoff = get_object_or_404(
+        InventoryWriteOff.objects.select_related('department', 'created_by', 'conducted_by').prefetch_related(
+            'items__inventory_item'), pk=pk)
+    return render(request, 'frontend/inventory_writeoff_detail.html', {'writeoff': writeoff})
+
+
+@login_required
+def inventory_writeoff_create(request):
+    departments = Department.objects.all()
+    inventory_items = InventoryItem.objects.filter(status='active')
+    return render(request, 'frontend/inventory_writeoff_form.html',
+                  {'departments': departments, 'inventory_items': inventory_items})
+
+
+@login_required
+def inventory_transfer_list(request):
+    transfers = InventoryTransfer.objects.all().select_related('from_department', 'to_department', 'created_by')
+    stats = {'total': transfers.count(), 'draft': transfers.filter(status='draft').count(),
+             'conducted': transfers.filter(status='conducted').count()}
+    return render(request, 'frontend/inventory_transfer_list.html', {'transfers': transfers, 'stats': stats})
+
+
+@login_required
+def inventory_transfer_detail(request, pk):
+    transfer = get_object_or_404(
+        InventoryTransfer.objects.select_related('from_department', 'to_department', 'created_by',
+                                                 'conducted_by').prefetch_related('items__inventory_item',
+                                                                                  'items__new_responsible'), pk=pk)
+    return render(request, 'frontend/inventory_transfer_detail.html', {'transfer': transfer})
+
+
+@login_required
+def inventory_transfer_create(request):
+    departments = Department.objects.all()
+    inventory_items = InventoryItem.objects.filter(status='active')
+    users = User.objects.filter(is_active=True)
+    return render(request, 'frontend/inventory_transfer_form.html',
+                  {'departments': departments, 'inventory_items': inventory_items, 'users': users})
+
+
+@login_required
+def inventory_stocktake_list(request):
+    stocktakes = InventoryStocktake.objects.all().select_related('department', 'created_by')
+    stats = {'total': stocktakes.count(), 'draft': stocktakes.filter(status='draft').count(),
+             'conducted': stocktakes.filter(status='conducted').count()}
+    return render(request, 'frontend/inventory_stocktake_list.html', {'stocktakes': stocktakes, 'stats': stats})
+
+
+@login_required
+def inventory_stocktake_detail(request, pk):
+    stocktake = get_object_or_404(
+        InventoryStocktake.objects.select_related('department', 'created_by', 'conducted_by').prefetch_related(
+            'items__inventory_item'), pk=pk)
+    return render(request, 'frontend/inventory_stocktake_detail.html', {'stocktake': stocktake})
+
+
+@login_required
+def inventory_stocktake_create(request):
+    departments = Department.objects.all()
+    inventory_items = InventoryItem.objects.filter(status='active')
+    return render(request, 'frontend/inventory_stocktake_form.html',
+                  {'departments': departments, 'inventory_items': inventory_items})
+
+
+@login_required
+def work_order_list(request):
+    orders = WorkOrder.objects.all().select_related('task', 'created_by')
+    stats = {'total': orders.count(), 'draft': orders.filter(status='draft').count(),
+             'issued': orders.filter(status='issued').count()}
+    return render(request, 'frontend/work_order_list.html', {'orders': orders, 'stats': stats})
+
+
+@login_required
+def work_order_detail(request, pk):
+    order = get_object_or_404(WorkOrder.objects.select_related('task', 'created_by', 'issued_by').prefetch_related(
+        'materials__warehouse_item', 'inventory__inventory_item'), pk=pk)
+    return render(request, 'frontend/work_order_detail.html', {'order': order})
+
+
+@login_required
+def work_order_create(request):
+    tasks = Task.objects.filter(status__in=['new', 'assigned', 'in_progress'])
+    warehouse_items = WarehouseItem.objects.all()
+    inventory_items = InventoryItem.objects.filter(status='active')
+    users = User.objects.filter(is_active=True)  # ← обязательно
+    return render(request, 'frontend/work_order_form.html', {
+        'tasks': tasks,
+        'warehouse_items': warehouse_items,
+        'inventory_items': inventory_items,
+        'users': users,
+    })
+
+
+@login_required
+def completion_act_list(request):
+    acts = CompletionAct.objects.all().select_related('task', 'created_by')
+    stats = {'total': acts.count(), 'draft': acts.filter(status='draft').count(),
+             'signed': acts.filter(status='signed').count()}
+    return render(request, 'frontend/completion_act_list.html', {'acts': acts, 'stats': stats})
+
+
+@login_required
+def completion_act_detail(request, pk):
+    act = get_object_or_404(
+        CompletionAct.objects.select_related('task', 'work_order', 'created_by', 'signed_by').prefetch_related(
+            'materials__warehouse_item'), pk=pk)
+    return render(request, 'frontend/completion_act_detail.html', {'act': act})
+
+
+@login_required
+def completion_act_create(request):
+    tasks = Task.objects.filter(status__in=['in_progress', 'completed'])
+    work_orders = WorkOrder.objects.filter(status='issued')
+    warehouse_items = WarehouseItem.objects.all()
+    return render(request, 'frontend/completion_act_form.html', {
+        'tasks': tasks, 'work_orders': work_orders, 'warehouse_items': warehouse_items
+    })
+
+
+@login_required
+def completion_act_edit(request, pk):
+    act = get_object_or_404(CompletionAct, pk=pk)
+    if act.status != 'draft':
+        messages.error(request, 'Можно редактировать только черновик')
+        return redirect('frontend:completion_act_detail', pk=pk)
+
+    tasks = Task.objects.filter(pk=act.task_id)
+    work_orders = WorkOrder.objects.filter(task_id=act.task_id, status='issued')
+    warehouse_items = WarehouseItem.objects.all()
+
+    return render(request, 'frontend/completion_act_form.html', {
+        'act': act,
+        'tasks': tasks,
+        'work_orders': work_orders,
+        'warehouse_items': warehouse_items,
+    })
+
+
+@login_required
+def work_order_edit(request, pk):
+    order = get_object_or_404(WorkOrder, pk=pk)
+    if order.status != 'draft':
+        messages.error(request, 'Можно редактировать только черновик')
+        return redirect('frontend:work_order_detail', pk=pk)
+
+    tasks = Task.objects.filter(pk=order.task_id)
+    warehouse_items = WarehouseItem.objects.all()
+    inventory_items = InventoryItem.objects.filter(status='active')
+    users = User.objects.filter(is_active=True)
+
+    return render(request, 'frontend/work_order_form.html', {
+        'order': order,
+        'tasks': tasks,
+        'warehouse_items': warehouse_items,
+        'inventory_items': inventory_items,
+        'users': users,
+    })
+
+
+@login_required
+def invoice_list(request):
+    invoices = Invoice.objects.all().select_related('counterparty', 'created_by')
+
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        invoices = invoices.filter(status=status_filter)
+
+    stats = {
+        'total': invoices.count(),
+        'draft': invoices.filter(status='draft').count(),
+        'sent': invoices.filter(status='sent').count(),
+        'paid': invoices.filter(status='paid').count(),
+    }
+
+    from django.core.paginator import Paginator
+    page = request.GET.get('page', 1)
+    paginator = Paginator(invoices, 20)
+    invoices_page = paginator.get_page(page)
+
+    return render(request, 'frontend/invoice_list.html', {
+        'invoices': invoices_page,
+        'stats': stats,
+        'current_filters': {'status': status_filter}
+    })
+
+
+@login_required
+def invoice_detail(request, pk):
+    invoice = get_object_or_404(
+        Invoice.objects.select_related('counterparty', 'task', 'created_by')
+        .prefetch_related('items__warehouse_item'),
+        pk=pk
+    )
+    return render(request, 'frontend/invoice_detail.html', {'invoice': invoice})
+
+
+@login_required
+def invoice_create(request):
+    counterparties = Counterparty.objects.all()
+    tasks = Task.objects.filter(status__in=['new', 'assigned', 'in_progress', 'completed'])
+    warehouse_items = WarehouseItem.objects.all()
+
+    return render(request, 'frontend/invoice_form.html', {
+        'counterparties': counterparties,
+        'tasks': tasks,
+        'warehouse_items': warehouse_items,
+    })
+
+
+@login_required
+def invoice_edit(request, pk):
+    invoice = get_object_or_404(Invoice, pk=pk)
+    if invoice.status != 'draft':
+        messages.error(request, 'Можно редактировать только черновик')
+        return redirect('frontend:invoice_detail', pk=pk)
+
+    counterparties = Counterparty.objects.all()
+    tasks = Task.objects.all()
+    warehouse_items = WarehouseItem.objects.all()
+
+    return render(request, 'frontend/invoice_form.html', {
+        'invoice': invoice,
+        'counterparties': counterparties,
+        'tasks': tasks,
+        'warehouse_items': warehouse_items,
+    })
+
+
+@login_required
+def invoice_factura_list(request):
+    facturas = InvoiceFactura.objects.all().select_related('counterparty', 'created_by')
+    stats = {
+        'total': facturas.count(),
+        'draft': facturas.filter(status='draft').count(),
+        'issued': facturas.filter(status='issued').count(),
+    }
+    from django.core.paginator import Paginator
+    page = request.GET.get('page', 1)
+    paginator = Paginator(facturas, 20)
+    facturas_page = paginator.get_page(page)
+    return render(request, 'frontend/invoice_factura_list.html', {'facturas': facturas_page, 'stats': stats})
+
+
+@login_required
+def invoice_factura_detail(request, pk):
+    factura = get_object_or_404(InvoiceFactura.objects.select_related('counterparty', 'expense', 'completion_act',
+                                                                      'created_by').prefetch_related('items'), pk=pk)
+    return render(request, 'frontend/invoice_factura_detail.html', {'factura': factura})
+
+
+@login_required
+def invoice_factura_create(request):
+    counterparties = Counterparty.objects.all()
+    expenses = WarehouseExpense.objects.filter(status='conducted')
+    acts = CompletionAct.objects.filter(status='signed')
+    return render(request, 'frontend/invoice_factura_form.html', {
+        'counterparties': counterparties,
+        'expenses': expenses,
+        'acts': acts,
+    })
+
+
+@login_required
+def invoice_factura_edit(request, pk):
+    factura = get_object_or_404(InvoiceFactura, pk=pk)
+    if factura.status != 'draft':
+        messages.error(request, 'Можно редактировать только черновик')
+        return redirect('frontend:invoice_factura_detail', pk=pk)
+    counterparties = Counterparty.objects.all()
+    expenses = WarehouseExpense.objects.filter(status='conducted')
+    acts = CompletionAct.objects.filter(status='signed')
+    return render(request, 'frontend/invoice_factura_form.html', {
+        'factura': factura,
+        'counterparties': counterparties,
+        'expenses': expenses,
+        'acts': acts,
+    })
+
+
+# Для генерации PDF
+def generate_pdf(request, model, pk, template_name, filename_prefix):
+    """
+    Универсальная функция для генерации PDF.
+
+    model - класс модели (Invoice, InvoiceFactura, WarehouseReceipt и т.д.)
+    pk - id объекта
+    template_name - путь к шаблону ('documents/pdf/invoice_pdf.html')
+    filename_prefix - префикс имени файла ('invoice', 'factura')
+    """
+    obj = get_object_or_404(model, pk=pk)
+
+    # Определяем имя контекста по имени модели
+    context_key = model.__name__.lower()
+    context = {context_key: obj}
+
+    html_string = render_to_string(template_name, context, request=request)
+    html = HTML(string=html_string, base_url=request.build_absolute_uri())
+    result = html.write_pdf()
+
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{filename_prefix}_{obj.number}.pdf"'
+    response.write(result)
+
+    return response
+
+
+@login_required
+def invoice_pdf(request, pk):
+    return generate_pdf(request, Invoice, pk, 'documents/pdf/invoice_pdf.html', 'invoice')
+
+@login_required
+def invoice_factura_pdf(request, pk):
+    return generate_pdf(request, InvoiceFactura, pk, 'documents/pdf/invoice_factura_pdf.html', 'factura')
+
+@login_required
+def warehouse_receipt_pdf(request, pk):
+    return generate_pdf(request, WarehouseReceipt, pk, 'documents/pdf/receipt_pdf.html', 'receipt')
+
+@login_required
+def warehouse_expense_pdf(request, pk):
+    return generate_pdf(request, WarehouseExpense, pk, 'documents/pdf/expense_pdf.html', 'expense')
+
+@login_required
+def completion_act_pdf(request, pk):
+    return generate_pdf(request, CompletionAct, pk, 'documents/pdf/act_pdf.html', 'act')
+
+@login_required
+def work_order_pdf(request, pk):
+    return generate_pdf(request, WorkOrder, pk, 'documents/pdf/work_order_pdf.html', 'work_order')

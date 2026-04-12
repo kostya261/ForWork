@@ -1,0 +1,264 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if order %}Редактирование{% else %}Новый{% endif %} наряд | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:work_order_list' %}">Наряды</a></li>
+                    {% if order %}
+                        <li class="breadcrumb-item"><a href="{% url 'frontend:work_order_detail' order.pk %}">{{ order.number }}</a></li>
+                        <li class="breadcrumb-item active">Редактирование</li>
+                    {% else %}
+                        <li class="breadcrumb-item active">Новый</li>
+                    {% endif %}
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">{% if order %}Редактирование{% else %}Создание{% endif %} наряда на работу</h2>
+        </div>
+        <a href="{% if order %}{% url 'frontend:work_order_detail' order.pk %}{% else %}{% url 'frontend:work_order_list' %}{% endif %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg me-1"></i>Отмена
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form id="orderForm">
+                {% csrf_token %}
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">Задача <span class="text-danger">*</span></label>
+                        <select name="task" id="task" class="form-select" required>
+                            <option value="">Выберите задачу</option>
+                            {% for t in tasks %}
+                                <option value="{{ t.id }}" {% if order.task_id == t.id %}selected{% endif %}>#{{ t.id }} - {{ t.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Ответственный</label>
+                        <select name="responsible" id="responsible" class="form-select">
+                            <option value="">Не назначен</option>
+                            {% for u in users %}
+                                <option value="{{ u.id }}" {% if order.responsible_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Дата выдачи</label>
+                        <input type="date" name="issue_date" id="issue_date" class="form-control"
+                               value="{% if order %}{{ order.issue_date|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Комментарий</label>
+                        <textarea name="comment" id="comment" class="form-control" rows="2">{{ order.comment|default:'' }}</textarea>
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Материалы</h5>
+                <div id="materialsContainer"></div>
+                <button type="button" class="btn btn-outline-primary mt-2" onclick="addMaterialRow()">
+                    <i class="bi bi-plus-lg me-1"></i>Добавить материал
+                </button>
+
+                <h5 class="mt-4 mb-3">Инвентарь</h5>
+                <div id="inventoryContainer"></div>
+                <button type="button" class="btn btn-outline-primary mt-2" onclick="addInventoryRow()">
+                    <i class="bi bi-plus-lg me-1"></i>Добавить инвентарь
+                </button>
+
+                <hr class="my-4">
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-check-lg me-1"></i>{% if order %}Сохранить{% else %}Создать наряд{% endif %}
+                    </button>
+                    <a href="{% if order %}{% url 'frontend:work_order_detail' order.pk %}{% else %}{% url 'frontend:work_order_list' %}{% endif %}" class="btn btn-outline-secondary">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const orderId = {% if order %}{{ order.pk }}{% else %}null{% endif %};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    // Данные из Django
+    const warehouseItems = [
+        {% for item in warehouse_items %}
+        { id: {{ item.id }}, name: "{{ item.name|escapejs }}", unit: "{{ item.get_unit_display }}" }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    const inventoryItems = [
+        {% for item in inventory_items %}
+        { id: {{ item.id }}, name: "{{ item.name|escapejs }}", invNum: "{{ item.inventory_number }}" }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    // Добавить строку материала
+    function addMaterialRow(warehouseItemId = null, quantity = 1) {
+        const container = document.getElementById('materialsContainer');
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 align-items-end';
+
+        let options = '<option value="">Выберите материал</option>';
+        warehouseItems.forEach(function(item) {
+            const selected = (warehouseItemId === item.id) ? 'selected' : '';
+            options += `<option value="${item.id}" ${selected}>${item.name} (${item.unit})</option>`;
+        });
+
+        row.innerHTML = `
+            <div class="col-md-7">
+                <select class="form-select mat-select" required>
+                    ${options}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="number" step="0.001" class="form-control mat-qty" placeholder="Количество" value="${quantity}" required>
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.row').remove()">
+                    <i class="bi bi-trash"></i> Удалить
+                </button>
+            </div>
+        `;
+
+        container.appendChild(row);
+    }
+
+    // Добавить строку инвентаря
+    function addInventoryRow(inventoryItemId = null, quantity = 1) {
+        const container = document.getElementById('inventoryContainer');
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 align-items-end';
+
+        let options = '<option value="">Выберите инвентарь</option>';
+        inventoryItems.forEach(function(item) {
+            const selected = (inventoryItemId === item.id) ? 'selected' : '';
+            options += `<option value="${item.id}" ${selected}>${item.name} (${item.invNum})</option>`;
+        });
+
+        row.innerHTML = `
+            <div class="col-md-7">
+                <select class="form-select inv-select" required>
+                    ${options}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="number" class="form-control inv-qty" placeholder="Количество" value="${quantity}" required>
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.row').remove()">
+                    <i class="bi bi-trash"></i> Удалить
+                </button>
+            </div>
+        `;
+
+        container.appendChild(row);
+    }
+
+    // Отправка формы
+    document.getElementById('orderForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Сохранение...';
+
+        // Собираем материалы
+        const materials = [];
+        document.querySelectorAll('#materialsContainer .row').forEach(function(row) {
+            const select = row.querySelector('.mat-select');
+            const qty = row.querySelector('.mat-qty');
+            if (select.value && qty.value) {
+                materials.push({
+                    warehouse_item: parseInt(select.value),
+                    planned_quantity: parseFloat(qty.value)
+                });
+            }
+        });
+
+        // Собираем инвентарь
+        const inventory = [];
+        document.querySelectorAll('#inventoryContainer .row').forEach(function(row) {
+            const select = row.querySelector('.inv-select');
+            const qty = row.querySelector('.inv-qty');
+            if (select.value && qty.value) {
+                inventory.push({
+                    inventory_item: parseInt(select.value),
+                    quantity: parseInt(qty.value)
+                });
+            }
+        });
+
+        // Формируем данные
+        const data = {
+            task: parseInt(document.getElementById('task').value),
+            issue_date: document.getElementById('issue_date').value,
+            comment: document.getElementById('comment').value || '',
+            materials: materials,
+            inventory: inventory
+        };
+
+        const responsible = document.getElementById('responsible').value;
+        if (responsible) {
+            data.responsible_id = parseInt(responsible);
+        }
+
+        console.log('Sending data:', data);
+
+        const url = orderId ? `/api/documents/work-orders/${orderId}/` : '/api/documents/work-orders/';
+        const method = orderId ? 'PATCH' : 'POST';
+
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify(data),
+            });
+
+            const responseText = await response.text();
+            console.log('Response:', responseText);
+
+            if (!response.ok) {
+                throw new Error(responseText);
+            }
+
+            const result = JSON.parse(responseText);
+            const newId = result.id || result.pk || orderId;
+
+            window.location.href = '/documents/work-orders/' + newId + '/';
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Ошибка: ' + error.message);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+
+    // Загружаем существующие данные при редактировании
+    {% if order %}
+        {% for m in order.materials.all %}
+            addMaterialRow({{ m.warehouse_item_id }}, {{ m.planned_quantity }});
+        {% endfor %}
+        {% for i in order.inventory.all %}
+            addInventoryRow({{ i.inventory_item_id }}, {{ i.quantity }});
+        {% endfor %}
+    {% else %}
+        // Для нового наряда добавляем по одной пустой строке
+        addMaterialRow();
+        addInventoryRow();
+    {% endif %}
+</script>
+{% endblock %}

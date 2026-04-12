@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block title %}Счёт {{ invoice.number }} | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:invoice_list' %}">Счета</a></li>
+                    <li class="breadcrumb-item active">{{ invoice.number }}</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">Счёт №{{ invoice.number }}</h2>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'frontend:invoice_pdf' invoice.pk %}" class="btn btn-outline-secondary" target="_blank">
+                <i class="bi bi-file-pdf"></i> PDF
+            </a>
+            {% if invoice.status == 'draft' %}
+                <a href="{% url 'frontend:invoice_edit' invoice.pk %}" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil"></i> Редактировать
+                </a>
+                <button class="btn btn-info" onclick="sendInvoice()">
+                    <i class="bi bi-send"></i> Отправить
+                </button>
+                <button class="btn btn-outline-danger" onclick="deleteInvoice()">
+                    <i class="bi bi-trash"></i> Удалить
+                </button>
+            {% elif invoice.status == 'sent' %}
+                <button class="btn btn-success" onclick="markPaid()">
+                    <i class="bi bi-check-lg"></i> Оплачен
+                </button>
+                <button class="btn btn-outline-danger" onclick="cancelInvoice()">
+                    <i class="bi bi-x-lg"></i> Отменить
+                </button>
+            {% elif invoice.status != 'paid' and invoice.status != 'cancelled' %}
+                <button class="btn btn-outline-danger" onclick="cancelInvoice()">
+                    <i class="bi bi-x-lg"></i> Отменить
+                </button>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header">Основная информация</div>
+                <div class="card-body">
+                    <div class="row mb-3"><div class="col-md-3 text-muted">Контрагент</div><div class="col-md-9"><a href="{% url 'frontend:counterparty_detail' invoice.counterparty.pk %}">{{ invoice.counterparty.name }}</a></div></div>
+                    {% if invoice.task %}
+                    <div class="row mb-3"><div class="col-md-3 text-muted">Задача</div><div class="col-md-9"><a href="{% url 'frontend:task_detail' invoice.task.pk %}">#{{ invoice.task.pk }} - {{ invoice.task.name }}</a></div></div>
+                    {% endif %}
+                    <div class="row mb-3"><div class="col-md-3 text-muted">Дата счёта</div><div class="col-md-9">{{ invoice.invoice_date|date:"d.m.Y" }}</div></div>
+                    {% if invoice.due_date %}
+                    <div class="row mb-3"><div class="col-md-3 text-muted">Оплатить до</div><div class="col-md-9">{{ invoice.due_date|date:"d.m.Y" }}</div></div>
+                    {% endif %}
+                    <div class="row mb-3"><div class="col-md-3 text-muted">Статус</div><div class="col-md-9"><span class="badge {% if invoice.status == 'draft' %}bg-warning{% elif invoice.status == 'sent' %}bg-info{% elif invoice.status == 'paid' %}bg-success{% else %}bg-secondary{% endif %} px-3 py-2">{{ invoice.get_status_display }}</span></div></div>
+                    <div class="row"><div class="col-md-3 text-muted">Комментарий</div><div class="col-md-9">{{ invoice.comment|linebreaks|default:"—" }}</div></div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">Позиции счёта</div>
+                <div class="card-body p-0">
+                    <table class="table mb-0">
+                        <thead class="table-light">
+                            <tr><th>Товар/Услуга</th><th>Кол-во</th><th>Ед.</th><th>Цена</th><th>Сумма</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for item in invoice.items.all %}
+                            <tr>
+                                <td>{% if item.warehouse_item %}{{ item.warehouse_item.name }}{% else %}{{ item.description }}{% endif %}</td>
+                                <td>{{ item.quantity }}</td>
+                                <td>{{ item.unit }}</td>
+                                <td>{{ item.price }} ₽</td>
+                                <td>{{ item.total }} ₽</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-center py-3 text-muted">Нет позиций</td></tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr><th colspan="4" class="text-end">Итого:</th><th>{{ invoice.total_sum|floatformat:2 }} ₽</th></tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">Кто участвовал</div>
+                <div class="card-body">
+                    <div class="mb-3"><label class="text-muted">Создал</label><div>{{ invoice.created_by.get_full_name|default:invoice.created_by.username }}</div><small>{{ invoice.created_at|date:"d.m.Y H:i" }}</small></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const invoiceId = {{ invoice.pk }};
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    async function sendInvoice(){if(!confirm('Отправить счёт?'))return;try{const r=await fetch(`/api/documents/invoices/${invoiceId}/send/`,{method:'POST',headers:{'X-CSRFToken':csrf}});if(r.ok)location.reload();else alert('Ошибка');}catch(e){alert('Ошибка: '+e.message)}}
+    async function markPaid(){if(!confirm('Отметить как оплаченный?'))return;try{const r=await fetch(`/api/documents/invoices/${invoiceId}/mark_paid/`,{method:'POST',headers:{'X-CSRFToken':csrf}});if(r.ok)location.reload();else alert('Ошибка');}catch(e){alert('Ошибка: '+e.message)}}
+    async function cancelInvoice(){if(!confirm('Отменить счёт?'))return;try{const r=await fetch(`/api/documents/invoices/${invoiceId}/cancel/`,{method:'POST',headers:{'X-CSRFToken':csrf}});if(r.ok)location.reload();else alert('Ошибка');}catch(e){alert('Ошибка: '+e.message)}}
+    async function deleteInvoice(){if(!confirm('Удалить счёт?'))return;try{const r=await fetch(`/api/documents/invoices/${invoiceId}/`,{method:'DELETE',headers:{'X-CSRFToken':csrf}});if(r.ok)window.location.href='/documents/invoices/';else alert('Ошибка');}catch(e){alert('Ошибка: '+e.message)}}
+</script>
+{% endblock %}

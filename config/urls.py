@@ -60,7 +60,7 @@ urlpatterns = [
     path('api/', include('warehouse.urls')),
     path('api/', include('tasks.urls')),
     path('api/', include('chat.urls')),
-
+    path('api/', include('notifications.urls')),
 
     # JWT эндпоинты
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),

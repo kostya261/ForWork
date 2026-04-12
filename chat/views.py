@@ -72,7 +72,6 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def send_message(self, request, pk=None):
-        """Отправить сообщение в комнату"""
         room = self.get_object()
 
         # Проверяем, что пользователь в комнате
@@ -82,13 +81,24 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        serializer = MessageSerializer(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        serializer.save(room=room)
+        # Создаём сообщение
+        text = request.data.get('text', '').strip()
+        if not text:
+            return Response(
+                {'error': 'Текст сообщения не может быть пустым'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        message = Message.objects.create(
+            room=room,
+            sender=request.user,
+            text=text
+        )
 
         # Обновляем время комнаты
-        room.save()  # auto_now сработает
+        room.save()
 
+        serializer = MessageSerializer(message, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])

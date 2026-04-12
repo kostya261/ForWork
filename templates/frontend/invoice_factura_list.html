@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}Счета-фактуры | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-light mb-0">
+            <i class="bi bi-file-spreadsheet me-2"></i>Счета-фактуры
+        </h2>
+        <a href="{% url 'frontend:invoice_factura_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>Создать
+        </a>
+    </div>
+    
+    <!-- Статистика -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card bg-light"><div class="card-body text-center py-2"><h5 class="mb-0">{{ stats.total }}</h5><small class="text-muted">Всего</small></div></div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-warning bg-opacity-10"><div class="card-body text-center py-2"><h5 class="mb-0 text-warning">{{ stats.draft }}</h5><small class="text-warning">Черновики</small></div></div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success bg-opacity-10"><div class="card-body text-center py-2"><h5 class="mb-0 text-success">{{ stats.issued }}</h5><small class="text-success">Выставлены</small></div></div>
+        </div>
+    </div>
+    
+    <!-- Таблица -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr><th>Номер</th><th>Дата</th><th>Контрагент</th><th>Основание</th><th>Сумма</th><th>НДС</th><th>Статус</th></tr>
+                </thead>
+                <tbody>
+                    {% for f in facturas %}
+                    <tr class="cursor-pointer" onclick="window.location='{% url 'frontend:invoice_factura_detail' f.pk %}'">
+                        <td>{{ f.number }}</td>
+                        <td>{{ f.factura_date|date:"d.m.Y" }}</td>
+                        <td>{{ f.counterparty.name }}</td>
+                        <td>{% if f.expense %}Расходная №{{ f.expense.number }}{% elif f.completion_act %}Акт №{{ f.completion_act.number }}{% else %}—{% endif %}</td>
+                        <td>{{ f.total_sum|floatformat:2 }} ₽</td>
+                        <td>{{ f.total_vat|floatformat:2 }} ₽</td>
+                        <td><span class="badge {% if f.status == 'draft' %}bg-warning{% elif f.status == 'issued' %}bg-success{% else %}bg-secondary{% endif %}">{{ f.get_status_display }}</span></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-file-spreadsheet fs-1"></i><p class="mt-2">Нет счетов-фактур</p><a href="{% url 'frontend:invoice_factura_create' %}" class="btn btn-sm btn-primary">Создать</a></td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Пагинация -->
+    {% if facturas.paginator.num_pages > 1 %}
+    <nav class="mt-4"><ul class="pagination justify-content-center">{% if facturas.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ facturas.previous_page_number }}"><i class="bi bi-chevron-left"></i></a></li>{% endif %}<li class="page-item active"><span class="page-link">{{ facturas.number }}</span></li>{% if facturas.has_next %}<li class="page-item"><a class="page-link" href="?page={{ facturas.next_page_number }}"><i class="bi bi-chevron-right"></i></a></li>{% endif %}</ul></nav>
+    {% endif %}
+</div>
+{% endblock %}

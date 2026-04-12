@@ -86,7 +86,7 @@
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-box-seam me-2"></i>Требуемые материалы</span>
-                    <button class="btn btn-sm btn-outline-primary" onclick="addMaterial(); return false;">
+                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addMaterialModal" onclick="loadMaterialList(); return false;">
                         <i class="bi bi-plus-lg"></i>Добавить
                     </button>
                 </div>
@@ -140,7 +140,7 @@
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-tools me-2"></i>Требуемый инвентарь</span>
-                    <button class="btn btn-sm btn-outline-primary" onclick="addInventory(); return false;">
+                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addInventoryModal" onclick="loadInventoryList(); return false;">
                         <i class="bi bi-plus-lg"></i>Добавить
                     </button>
                 </div>
@@ -325,6 +325,76 @@
     </div>
 </div>
 
+
+<!-- Модальное окно для добавления инвентаря -->
+<div class="modal fade" id="addInventoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Добавить инвентарь</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addInventoryForm" onsubmit="submitInventory(event); return false;">
+                    <div class="mb-3">
+                        <label class="form-label">Инвентарь</label>
+                        <select name="inventory" id="inventorySelect" class="form-select" required>
+                            <option value="">Выберите инвентарь</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Количество</label>
+                        <input type="number" name="quantity" id="inventoryQuantity" class="form-control" value="1" min="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Примечание</label>
+                        <input type="text" name="comment" id="inventoryComment" class="form-control">
+                    </div>
+                    <div class="text-end">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-primary">Добавить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для добавления материала -->
+<div class="modal fade" id="addMaterialModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Добавить материал</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addMaterialForm" onsubmit="submitMaterial(event); return false;">
+                    <div class="mb-3">
+                        <label class="form-label">Материал</label>
+                        <select name="material" id="materialSelect" class="form-select" required>
+                            <option value="">Выберите материал</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Плановое количество</label>
+                        <input type="number" step="0.001" name="quantity" id="materialQuantity" class="form-control" value="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Примечание</label>
+                        <input type="text" name="comment" id="materialComment" class="form-control">
+                    </div>
+                    <div class="text-end">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-primary">Добавить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
 <script>
     const taskId = {{ task.pk }};
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
@@ -416,6 +486,115 @@
     function addInventory() {
         alert('Форма добавления инвентаря в разработке');
     }
+
+        // Загрузка списка инвентаря
+    async function loadInventoryList() {
+        try {
+            const response = await fetch('/api/inventory/?status=active');
+            const data = await response.json();
+            const items = data.results || data;
+            const select = document.getElementById('inventorySelect');
+            select.innerHTML = '<option value="">Выберите инвентарь</option>';
+            items.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = `${item.name} (${item.inventory_number})`;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Ошибка загрузки инвентаря:', error);
+        }
+    }
+
+    // Загрузка списка материалов
+    async function loadMaterialList() {
+        try {
+            const response = await fetch('/api/warehouse/');
+            const data = await response.json();
+            const items = data.results || data;
+            const select = document.getElementById('materialSelect');
+            select.innerHTML = '<option value="">Выберите материал</option>';
+            items.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = `${item.name} (${item.article || '—'}) - ${item.quantity} ${item.unit_display}`;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Ошибка загрузки материалов:', error);
+        }
+    }
+
+    // Отправка инвентаря
+    async function submitInventory(event) {
+        event.preventDefault();
+        const inventoryId = document.getElementById('inventorySelect').value;
+        const quantity = document.getElementById('inventoryQuantity').value;
+        const comment = document.getElementById('inventoryComment').value;
+
+        if (!inventoryId || !quantity) return;
+
+        try {
+            const response = await fetch(`/api/tasks/${taskId}/add_inventory/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({
+                    inventory: parseInt(inventoryId),
+                    quantity: parseInt(quantity),
+                    comment: comment
+                }),
+            });
+
+            if (response.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('addInventoryModal')).hide();
+                location.reload();
+            } else {
+                const error = await response.json();
+                alert('Ошибка: ' + JSON.stringify(error));
+            }
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+
+    // Отправка материала
+    async function submitMaterial(event) {
+        event.preventDefault();
+        const materialId = document.getElementById('materialSelect').value;
+        const quantity = document.getElementById('materialQuantity').value;
+        const comment = document.getElementById('materialComment').value;
+
+        if (!materialId || !quantity) return;
+
+        try {
+            const response = await fetch(`/api/tasks/${taskId}/add_material/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({
+                    warehouse_item: parseInt(materialId),
+                    planned_quantity: parseFloat(quantity),
+                    comment: comment
+                }),
+            });
+
+            if (response.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('addMaterialModal')).hide();
+                location.reload();
+            } else {
+                const error = await response.json();
+                alert('Ошибка: ' + JSON.stringify(error));
+            }
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+
 </script>
 
 <style>
