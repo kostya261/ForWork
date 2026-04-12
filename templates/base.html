@@ -11,6 +11,10 @@
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 
+    <!-- Select2 -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
     {% block extra_css %}{% endblock %}
 
     <style>
@@ -166,7 +170,6 @@
         .nav-link[aria-expanded="true"] .bi-chevron-down {
             transform: rotate(180deg);
         }
-
     </style>
 </head>
 <body>
@@ -202,20 +205,16 @@
             <div class="d-flex align-items-center cursor-pointer" data-bs-toggle="dropdown">
                 <div class="bg-light rounded-circle d-flex align-items-center justify-content-center"
                      style="width: 40px; height: 40px;">
-                        <span class="text-primary fw-bold">
-                            {{ user.get_full_name|default:user.username|slice:":1"|upper }}
-                        </span>
+                    <span class="text-primary fw-bold">
+                        {{ user.get_full_name|default:user.username|slice:":1"|upper }}
+                    </span>
                 </div>
                 <span class="ms-2 d-none d-md-block">{{ user.get_full_name|default:user.username }}</span>
                 <i class="bi bi-chevron-down ms-2 d-none d-md-block"></i>
             </div>
             <div class="dropdown-menu dropdown-menu-end">
-                <a class="dropdown-item" href="#">
-                    <i class="bi bi-person me-2"></i>Профиль
-                </a>
-                <a class="dropdown-item" href="#">
-                    <i class="bi bi-gear me-2"></i>Настройки
-                </a>
+                <a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>Профиль</a>
+                <a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>Настройки</a>
                 <div class="dropdown-divider"></div>
                 <form method="post" action="{% url 'logout' %}">
                     {% csrf_token %}
@@ -235,8 +234,7 @@
             <small class="text-muted text-uppercase fw-bold px-2">Главное</small>
         </div>
 
-        <a href="{% url 'frontend:dashboard' %}"
-           class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+        <a href="{% url 'frontend:dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
             <i class="bi bi-speedometer2"></i>
             <span>Дашборд</span>
         </a>
@@ -350,6 +348,16 @@
             <span>Отделы</span>
         </a>
 
+        <a href="{% url 'frontend:manufacturer_list' %}" class="nav-link">
+            <i class="bi bi-building"></i>
+            <span>Производители</span>
+        </a>
+
+        <a href="{% url 'frontend:warehouse_category_list' %}" class="nav-link">
+            <i class="bi bi-tags"></i>
+            <span>Категории склада</span>
+        </a>
+
         {% if user.is_staff %}
         <a href="{% url 'frontend:users_list' %}" class="nav-link">
             <i class="bi bi-people"></i>
@@ -385,7 +393,29 @@
 <!-- Bootstrap JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
+<!-- Select2 -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/ru.js"></script>
+
 <script>
+    // Инициализация Select2 для всех select'ов
+    document.addEventListener('DOMContentLoaded', function() {
+        $('select:not([multiple])').select2({
+            theme: 'bootstrap-5',
+            language: 'ru',
+            placeholder: 'Выберите...',
+            allowClear: true,
+            width: '100%'
+        });
+
+        $('select[multiple]').select2({
+            theme: 'bootstrap-5',
+            language: 'ru',
+            placeholder: 'Выберите...',
+            width: '100%'
+        });
+    });
+
     // Переключение бокового меню
     const sidebar = document.getElementById('sidebar');
     const mainContent = document.getElementById('mainContent');
@@ -394,20 +424,16 @@
     toggleBtn.addEventListener('click', () => {
         sidebar.classList.toggle('collapsed');
         mainContent.classList.toggle('expanded');
-
-        // Сохраняем состояние
         const isCollapsed = sidebar.classList.contains('collapsed');
         localStorage.setItem('sidebarCollapsed', isCollapsed);
     });
 
-    // Восстанавливаем состояние
     const savedState = localStorage.getItem('sidebarCollapsed');
     if (savedState === 'true') {
         sidebar.classList.add('collapsed');
         mainContent.classList.add('expanded');
     }
 
-    // Мобильное меню
     if (window.innerWidth <= 768) {
         toggleBtn.addEventListener('click', () => {
             sidebar.classList.toggle('mobile-open');
@@ -417,6 +443,7 @@
 
 <script>
     // Уведомления
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
     async function loadNotifications() {
         try {
@@ -489,21 +516,14 @@
 
     async function handleNotificationClick(event, notificationId, link) {
         event.preventDefault();
-
         await markNotificationRead(notificationId);
-
-        if (!link) {
-            loadNotifications();
-            return;
-        }
-
+        if (!link) { loadNotifications(); return; }
         try {
             const match = link.match(/\/(\d+)\/$/);
             if (match) {
                 const id = match[1];
                 const isTask = link.includes('/tasks/');
                 const apiUrl = isTask ? `/api/tasks/${id}/` : null;
-
                 if (apiUrl) {
                     const response = await fetch(apiUrl);
                     if (!response.ok) {
@@ -517,9 +537,7 @@
                     }
                 }
             }
-
             window.location.href = link;
-
         } catch (error) {
             console.error('Ошибка проверки ссылки:', error);
             window.location.href = link;
@@ -536,7 +554,6 @@
         } catch (e) {}
     }
 
-    // Загружаем при открытии и каждые 30 секунд
     loadNotifications();
     setInterval(loadNotifications, 30000);
 </script>

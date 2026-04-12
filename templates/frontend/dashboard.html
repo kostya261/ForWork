@@ -152,16 +152,39 @@
                 <div class="card-header">
                     <i class="bi bi-exclamation-triangle me-2"></i>Требуют внимания
                 </div>
-                <div class="card-body">
-                    <div class="alert alert-warning mb-2">
-                        <i class="bi bi-box me-2"></i>
-                        <strong>Гайка М8</strong> — осталось 12 шт.
-                    </div>
-                    <div class="alert alert-danger mb-0">
-                        <i class="bi bi-clock me-2"></i>
-                        <strong>Задача #38</strong> — просрочена на 2 дня
+                 <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for item in low_stock_items %}
+                            <a href="{% url 'frontend:warehouse_detail' item.pk %}" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-box me-2 text-warning"></i>
+                                        <strong>{{ item.name }}</strong>
+                                    </div>
+                                    <span class="badge bg-warning text-dark">Осталось {{ item.quantity }} {{ item.get_unit_display }}</span>
+                                </div>
+                            </a>
+                        {% empty %}
+                            <div class="list-group-item text-muted">Нет товаров с низким остатком</div>
+                        {% endfor %}
+
+                        {% for task in overdue_tasks_list %}
+                            <a href="{% url 'frontend:task_detail' task.pk %}" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-clock me-2 text-danger"></i>
+                                        <strong>Задача #{{ task.pk }}</strong>
+                                        <small class="d-block text-muted">{{ task.name|truncatechars:30 }}</small>
+                                    </div>
+                                    <span class="badge bg-danger">Просрочена</span>
+                                </div>
+                            </a>
+                        {% empty %}
+                            <div class="list-group-item text-muted">Нет просроченных задач</div>
+                        {% endfor %}
                     </div>
                 </div>
+            </div>
             </div>
         </div>
     </div>

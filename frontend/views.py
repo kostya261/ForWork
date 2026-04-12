@@ -5,6 +5,8 @@ from django.db.models import Count, Q, F
 from django.db.models import Sum
 from django.contrib import messages
 
+from categories.models import Category
+from manufacturers.models import Manufacturer
 from tasks.models import Task
 from tasks.serializers import TaskListSerializer
 from counterparties.models import Counterparty
@@ -51,6 +53,8 @@ def dashboard(request):
 
     # Товары с низким остатком
     low_stock = WarehouseItem.objects.filter(quantity__lte=F('min_stock')).count()
+    low_stock_items = WarehouseItem.objects.filter(quantity__lte=F('min_stock'))[:5]
+
     warehouse_items = WarehouseItem.objects.count()
 
     # Инвентарь
@@ -70,6 +74,7 @@ def dashboard(request):
         'overdue_tasks': overdue_tasks,
         'warehouse_items': warehouse_items,
         'low_stock': low_stock,
+        'low_stock_items': low_stock_items,
         'active_inventory': active_inventory,
         'available_inventory': available_inventory,
         'pending_docs': pending_docs,
@@ -1260,22 +1265,66 @@ def generate_pdf(request, model, pk, template_name, filename_prefix):
 def invoice_pdf(request, pk):
     return generate_pdf(request, Invoice, pk, 'documents/pdf/invoice_pdf.html', 'invoice')
 
+
 @login_required
 def invoice_factura_pdf(request, pk):
     return generate_pdf(request, InvoiceFactura, pk, 'documents/pdf/invoice_factura_pdf.html', 'factura')
+
 
 @login_required
 def warehouse_receipt_pdf(request, pk):
     return generate_pdf(request, WarehouseReceipt, pk, 'documents/pdf/receipt_pdf.html', 'receipt')
 
+
 @login_required
 def warehouse_expense_pdf(request, pk):
     return generate_pdf(request, WarehouseExpense, pk, 'documents/pdf/expense_pdf.html', 'expense')
+
 
 @login_required
 def completion_act_pdf(request, pk):
     return generate_pdf(request, CompletionAct, pk, 'documents/pdf/act_pdf.html', 'act')
 
+
 @login_required
 def work_order_pdf(request, pk):
     return generate_pdf(request, WorkOrder, pk, 'documents/pdf/work_order_pdf.html', 'work_order')
+
+
+@login_required
+def manufacturer_list(request):
+    manufacturers = Manufacturer.objects.all()
+    return render(request, 'frontend/manufacturer_list.html', {'manufacturers': manufacturers})
+
+
+@login_required
+def manufacturer_create(request):
+    if request.method == 'POST':
+        # Через JS
+        pass
+    return render(request, 'frontend/manufacturer_form.html')
+
+
+@login_required
+def manufacturer_edit(request, pk):
+    manufacturer = get_object_or_404(Manufacturer, pk=pk)
+    return render(request, 'frontend/manufacturer_form.html', {'manufacturer': manufacturer})
+
+
+@login_required
+def warehouse_category_list(request):
+    categories = Category.objects.all()
+    return render(request, 'frontend/warehouse_category_list.html', {'categories': categories})
+
+
+@login_required
+def warehouse_category_create(request):
+    categories = Category.objects.all()
+    return render(request, 'frontend/warehouse_category_form.html', {'categories': categories})
+
+
+@login_required
+def warehouse_category_edit(request, pk):
+    category = get_object_or_404(Category, pk=pk)
+    categories = Category.objects.exclude(pk=pk)
+    return render(request, 'frontend/warehouse_category_form.html', {'category': category, 'categories': categories})

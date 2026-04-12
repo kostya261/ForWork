@@ -100,6 +100,16 @@ urlpatterns = [
     path('documents/invoice-facturas/<int:pk>/', views.invoice_factura_detail, name='invoice_factura_detail'),
     path('documents/invoice-facturas/<int:pk>/edit/', views.invoice_factura_edit, name='invoice_factura_edit'),
 
+    # Производители
+    path('manufacturers/', views.manufacturer_list, name='manufacturer_list'),
+    path('manufacturers/create/', views.manufacturer_create, name='manufacturer_create'),
+    path('manufacturers/<int:pk>/edit/', views.manufacturer_edit, name='manufacturer_edit'),
+
+    # Категории
+    path('warehouse-categories/', views.warehouse_category_list, name='warehouse_category_list'),
+    path('warehouse-categories/create/', views.warehouse_category_create, name='warehouse_category_create'),
+    path('warehouse-categories/<int:pk>/edit/', views.warehouse_category_edit, name='warehouse_category_edit'),
+
     # PDF
     path('documents/invoices/<int:pk>/pdf/', views.invoice_pdf, name='invoice_pdf'),
     path('documents/invoice-facturas/<int:pk>/pdf/', views.invoice_factura_pdf, name='invoice_factura_pdf'),

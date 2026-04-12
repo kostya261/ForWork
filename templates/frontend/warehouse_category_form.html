@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}{% if category %}Редактирование{% else %}Новая{% endif %} категория склада | ForWork ERP{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-light">{% if category %}Редактирование{% else %}Новая{% endif %} категория склада</h2>
+        <a href="{% url 'frontend:warehouse_category_list' %}" class="btn btn-outline-secondary">Отмена</a>
+    </div>
+    <div class="card"><div class="card-body">
+        <form id="categoryForm">{% csrf_token %}
+            <input type="hidden" id="categoryId" value="{{ category.pk|default:'' }}">
+            <div class="mb-3"><label class="form-label">Название *</label><input type="text" id="name" class="form-control" value="{{ category.name|default:'' }}" required></div>
+            <div class="mb-3"><label class="form-label">Родительская категория</label>
+                <select id="parent" class="form-select"><option value="">Нет</option>{% for c in categories %}<option value="{{ c.id }}" {% if category.parent_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select>
+            </div>
+            <div class="mb-3"><label class="form-label">Описание</label><textarea id="description" class="form-control" rows="3">{{ category.description|default:'' }}</textarea></div>
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+            <a href="{% url 'frontend:warehouse_category_list' %}" class="btn btn-outline-secondary">Отмена</a>
+        </form>
+    </div></div>
+</div>
+<script>
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const id = document.getElementById('categoryId').value;
+    document.getElementById('categoryForm').addEventListener('submit', async function(e){
+        e.preventDefault();
+        const data = {name: document.getElementById('name').value, description: document.getElementById('description').value, parent_id: document.getElementById('parent').value || null};
+        const url = id ? `/api/categories/${id}/` : '/api/categories/';
+        const method = id ? 'PATCH' : 'POST';
+        try {
+            const r = await fetch(url, {method, headers:{'Content-Type':'application/json','X-CSRFToken':csrf}, body:JSON.stringify(data)});
+            if(r.ok) window.location.href = '/warehouse-categories/';
+            else alert('Ошибка сохранения');
+        } catch(e) { alert('Ошибка'); }
+    });
+</script>
+{% endblock %}
