@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from gallery.models import Image
 from inventory_categories.models import InventoryCategory
 from .models import InventoryItem
 
@@ -12,11 +13,19 @@ class InventoryItemListSerializer(serializers.ModelSerializer):
     responsible_name = serializers.CharField(source='responsible.get_full_name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
 
+    image_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Image.objects.all(),
+        source='images',
+        write_only=True,
+        required=False
+    )
+
     class Meta:
         model = InventoryItem
         fields = [
             'id', 'name', 'inventory_number', 'serial_number',
-            'category_name',
+            'category_name', 'image_ids',
             'manufacturer_name', 'status', 'status_display',
             'department_name', 'responsible_name',
             'purchase_price', 'purchase_date'
@@ -57,6 +66,15 @@ class InventoryItemDetailSerializer(serializers.ModelSerializer):
         source='category', write_only=True, required=False
     )
 
+    # 🔥 ВОТ ЭТО ДОБАВЛЯЕМ — для приёма ID изображений при создании/редактировании
+    image_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Image.objects.all(),
+        source='images',
+        write_only=True,
+        required=False
+    )
+
     class Meta:
         model = InventoryItem
         fields = [
@@ -69,7 +87,8 @@ class InventoryItemDetailSerializer(serializers.ModelSerializer):
             'status', 'status_display', 'decommission_reason',
             'department', 'department_name', 'department_id',
             'responsible', 'responsible_name', 'responsible_id',
-            'images', 'images_count', 'images_urls',
+            'images', 'image_ids',  # 🔥 и в fields добавляем
+            'images_count', 'images_urls',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']

@@ -110,6 +110,10 @@ urlpatterns = [
     path('warehouse-categories/create/', views.warehouse_category_create, name='warehouse_category_create'),
     path('warehouse-categories/<int:pk>/edit/', views.warehouse_category_edit, name='warehouse_category_edit'),
 
+    path('inventory-categories/', views.inventory_category_list, name='inventory_category_list'),
+    path('inventory-categories/create/', views.inventory_category_create, name='inventory_category_create'),
+    path('inventory-categories/<int:pk>/edit/', views.inventory_category_edit, name='inventory_category_edit'),
+
     # PDF
     path('documents/invoices/<int:pk>/pdf/', views.invoice_pdf, name='invoice_pdf'),
     path('documents/invoice-facturas/<int:pk>/pdf/', views.invoice_factura_pdf, name='invoice_factura_pdf'),

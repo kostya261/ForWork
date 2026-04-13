@@ -1,4 +1,6 @@
 from rest_framework import serializers
+
+from gallery.models import Image
 from .models import WarehouseItem, WarehouseTransaction
 
 
@@ -47,6 +49,14 @@ class WarehouseItemDetailSerializer(serializers.ModelSerializer):
     images_count = serializers.SerializerMethodField()
     recent_transactions = serializers.SerializerMethodField()
 
+    image_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Image.objects.all(),
+        source='images',
+        write_only=True,
+        required=False
+    )
+
     class Meta:
         model = WarehouseItem
         fields = [
@@ -56,7 +66,7 @@ class WarehouseItemDetailSerializer(serializers.ModelSerializer):
             'quantity', 'unit', 'unit_display', 'min_stock', 'is_low_stock',
             'purchase_price', 'retail_price',
             'department', 'department_name', 'department_id',
-            'images', 'images_count',
+            'images', 'image_ids','images_count',
             'recent_transactions',
             'created_at', 'updated_at'
         ]

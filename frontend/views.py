@@ -6,6 +6,7 @@ from django.db.models import Sum
 from django.contrib import messages
 
 from categories.models import Category
+from inventory_categories.models import InventoryCategory
 from manufacturers.models import Manufacturer
 from tasks.models import Task
 from tasks.serializers import TaskListSerializer
@@ -62,11 +63,24 @@ def dashboard(request):
     available_inventory = InventoryItem.objects.filter(status='active', responsible__isnull=True).count()
 
     # Документы
-    pending_docs = MaterialRequest.objects.filter(status__in=['pending', 'approved']).count() + \
-                   InventoryIssue.objects.filter(status__in=['pending', 'approved']).count()
+    pending_docs = (
+        WarehouseReceipt.objects.filter(status='draft').count() +
+        WarehouseExpense.objects.filter(status='draft').count() +
+        WarehouseTransfer.objects.filter(status='draft').count() +
+        WarehouseStocktake.objects.filter(status='draft').count() +
+        InventoryIssue.objects.filter(status__in=['draft', 'pending']).count() +
+        InventoryWriteOff.objects.filter(status='draft').count() +
+        InventoryTransfer.objects.filter(status='draft').count() +
+        InventoryStocktake.objects.filter(status='draft').count() +
+        WorkOrder.objects.filter(status='draft').count() +
+        CompletionAct.objects.filter(status='draft').count() +
+        Invoice.objects.filter(status='draft').count() +
+        InvoiceFactura.objects.filter(status='draft').count() +
+        MaterialRequest.objects.filter(status__in=['draft', 'pending']).count()
+    )
 
     # Последние задачи
-    recent_tasks = my_tasks.order_by('-created_at')[:15]
+    recent_tasks = my_tasks.order_by('-created_at')[:10]
 
     context = {
         'today': today,
@@ -1328,3 +1342,20 @@ def warehouse_category_edit(request, pk):
     category = get_object_or_404(Category, pk=pk)
     categories = Category.objects.exclude(pk=pk)
     return render(request, 'frontend/warehouse_category_form.html', {'category': category, 'categories': categories})
+
+
+@login_required
+def inventory_category_list(request):
+    categories = InventoryCategory.objects.all()
+    return render(request, 'frontend/inventory_category_list.html', {'categories': categories})
+
+@login_required
+def inventory_category_create(request):
+    categories = InventoryCategory.objects.all()
+    return render(request, 'frontend/inventory_category_form.html', {'categories': categories})
+
+@login_required
+def inventory_category_edit(request, pk):
+    category = get_object_or_404(InventoryCategory, pk=pk)
+    categories = InventoryCategory.objects.exclude(pk=pk)
+    return render(request, 'frontend/inventory_category_form.html', {'category': category, 'categories': categories})
