@@ -15,10 +15,11 @@
             <h2 class="fw-light mt-2">{{ rack.name }} (№{{ rack.number }})</h2>
         </div>
         <div class="d-flex gap-2">
-            <a href="{% url 'frontend:rack_edit' rack.pk %}" class="btn btn-outline-primary"><i class="bi bi-pencil"></i></a>
+            <a href="{% url 'frontend:rack_edit' rack.pk %}" class="btn btn-outline-primary"><i class="bi bi-pencil"></i> Редактировать</a>
+            <button class="btn btn-outline-danger" onclick="deleteRack()"><i class="bi bi-trash"></i> Удалить</button>
         </div>
     </div>
-    
+
     <div class="row g-4">
         <div class="col-md-8">
             <div class="card mb-4">
@@ -28,7 +29,7 @@
                     <p><strong>Описание:</strong> {{ rack.description|linebreaks|default:"—" }}</p>
                 </div>
             </div>
-            
+
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>Ячейки ({{ rack.cells.count }})</span>
@@ -53,7 +54,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-4">
             {% if rack.images.exists %}
             <div class="card">
@@ -82,4 +83,29 @@
         </div>
     </div>
 </div>
+
+<script>
+    const rackId = {{ rack.pk }};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    async function deleteRack() {
+        if (!confirm('Удалить стеллаж «{{ rack.name|escapejs }}»? Все ячейки будут также удалены.')) return;
+
+        try {
+            const response = await fetch(`/api/racks/${rackId}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+
+            if (response.ok) {
+                window.location.href = '/warehouse/racks/';
+            } else {
+                const error = await response.json();
+                alert('Ошибка удаления: ' + (error.detail || ''));
+            }
+        } catch (e) {
+            alert('Ошибка: ' + e.message);
+        }
+    }
+</script>
 {% endblock %}

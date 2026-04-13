@@ -16,10 +16,11 @@
             <h2 class="fw-light mt-2">{{ cell.name }} (№{{ cell.number }})</h2>
         </div>
         <div class="d-flex gap-2">
-            <a href="{% url 'frontend:cell_edit' cell.pk %}" class="btn btn-outline-primary"><i class="bi bi-pencil"></i></a>
+            <a href="{% url 'frontend:cell_edit' cell.pk %}" class="btn btn-outline-primary"><i class="bi bi-pencil"></i> Редактировать</a>
+            <button class="btn btn-outline-danger" onclick="deleteCell()"><i class="bi bi-trash"></i> Удалить</button>
         </div>
     </div>
-    
+
     <div class="row g-4">
         <div class="col-md-8">
             <div class="card mb-4">
@@ -36,7 +37,7 @@
                     {% endif %}
                 </div>
             </div>
-            
+
             <div class="card">
                 <div class="card-header">Товары в ячейке ({{ cell.items.count }})</div>
                 <div class="card-body p-0">
@@ -58,7 +59,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-4">
             {% if cell.images.exists %}
             <div class="card">
@@ -87,4 +88,29 @@
         </div>
     </div>
 </div>
+
+<script>
+    const cellId = {{ cell.pk }};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    async function deleteCell() {
+        if (!confirm('Удалить ячейку «{{ cell.name|escapejs }}»?')) return;
+
+        try {
+            const response = await fetch(`/api/cells/${cellId}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+
+            if (response.ok) {
+                window.location.href = '/warehouse/racks/{{ cell.rack.pk }}/';
+            } else {
+                const error = await response.json();
+                alert('Ошибка удаления: ' + (error.detail || ''));
+            }
+        } catch (e) {
+            alert('Ошибка: ' + e.message);
+        }
+    }
+</script>
 {% endblock %}
