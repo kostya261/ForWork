@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "frontend",
     "notifications",
+    "warehouse_locations",
 
 ]
 

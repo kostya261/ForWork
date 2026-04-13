@@ -122,6 +122,18 @@ urlpatterns = [
     path('documents/completion-acts/<int:pk>/pdf/', views.completion_act_pdf, name='completion_act_pdf'),
     path('documents/work-orders/<int:pk>/pdf/', views.work_order_pdf, name='work_order_pdf'),
 
+    # Стеллажи
+    path('warehouse/racks/', views.rack_list, name='rack_list'),
+    path('warehouse/racks/create/', views.rack_create, name='rack_create'),
+    path('warehouse/racks/<int:pk>/', views.rack_detail, name='rack_detail'),
+    path('warehouse/racks/<int:pk>/edit/', views.rack_edit, name='rack_edit'),
+
+    # Ячейки
+    path('warehouse/cells/', views.cell_list, name='cell_list'),
+    path('warehouse/cells/create/', views.cell_create, name='cell_create'),
+    path('warehouse/cells/<int:pk>/', views.cell_detail, name='cell_detail'),
+    path('warehouse/cells/<int:pk>/edit/', views.cell_edit, name='cell_edit'),
+
     # Чат
     path('chat/', views.chat_index, name='chat_index'),
 

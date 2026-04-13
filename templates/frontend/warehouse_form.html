@@ -99,6 +99,15 @@
                             {% endfor %}
                         </select>
                     </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Место хранения (ячейка)</label>
+                        <select name="cell" id="cell" class="form-select">
+                            <option value="">Не указано</option>
+                            {% for c in cells %}
+                                <option value="{{ c.id }}" {% if item.cell_id == c.id %}selected{% endif %}>{{ c.rack.name }} → {{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
 
                     <div class="col-md-2">
                         <label class="form-label">Цена закуп.</label>
@@ -225,6 +234,7 @@
             category_id: document.getElementById('category').value || null,
             manufacturer_id: document.getElementById('manufacturer').value || null,
             department_id: document.getElementById('department').value || null,
+            cell_id: document.getElementById('cell').value || null,
             purchase_price: document.getElementById('purchase_price').value || null,
             retail_price: document.getElementById('retail_price').value || null,
             image_ids: imageIds ? imageIds.split(',').map(id => parseInt(id)) : []

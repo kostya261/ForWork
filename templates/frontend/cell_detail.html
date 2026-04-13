@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ cell.name }} | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:rack_list' %}">Стеллажи</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:rack_detail' cell.rack.pk %}">{{ cell.rack.name }}</a></li>
+                    <li class="breadcrumb-item active">{{ cell.name }}</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">{{ cell.name }} (№{{ cell.number }})</h2>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'frontend:cell_edit' cell.pk %}" class="btn btn-outline-primary"><i class="bi bi-pencil"></i></a>
+        </div>
+    </div>
+    
+    <div class="row g-4">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">Информация</div>
+                <div class="card-body">
+                    <p><strong>Стеллаж:</strong> <a href="{% url 'frontend:rack_detail' cell.rack.pk %}">{{ cell.rack.name }}</a></p>
+                    <p><strong>Отдел:</strong> {{ cell.rack.department.name }}</p>
+                    <p><strong>Описание:</strong> {{ cell.description|linebreaks|default:"—" }}</p>
+                    {% if cell.width or cell.height or cell.depth %}
+                    <p><strong>Размеры (Ш×В×Г):</strong> {{ cell.width|default:"—" }} × {{ cell.height|default:"—" }} × {{ cell.depth|default:"—" }} см</p>
+                    {% endif %}
+                    {% if cell.max_weight %}
+                    <p><strong>Макс. нагрузка:</strong> {{ cell.max_weight }} кг</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">Товары в ячейке ({{ cell.items.count }})</div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for item in cell.items.all %}
+                        <a href="{% url 'frontend:warehouse_detail' item.pk %}" class="list-group-item list-group-item-action">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ item.name }}</strong>
+                                    <span class="text-muted ms-2">{{ item.article|default:'' }}</span>
+                                </div>
+                                <span>{{ item.quantity }} {{ item.get_unit_display }}</span>
+                            </div>
+                        </a>
+                        {% empty %}
+                        <div class="list-group-item text-muted">Нет товаров</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            {% if cell.images.exists %}
+            <div class="card">
+                <div class="card-header">Изображения</div>
+                <div class="card-body">
+                    <div id="carousel" class="carousel slide" data-bs-ride="false">
+                        <div class="carousel-inner">
+                            {% for img in cell.images.all %}
+                            <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                                <img src="{{ img.image.url }}" class="d-block w-100 rounded" style="max-height: 200px; object-fit: contain;">
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% if cell.images.count > 1 %}
+                        <button class="carousel-control-prev" type="button" data-bs-target="#carousel" data-bs-slide="prev">
+                            <span class="carousel-control-prev-icon bg-dark rounded-circle"></span>
+                        </button>
+                        <button class="carousel-control-next" type="button" data-bs-target="#carousel" data-bs-slide="next">
+                            <span class="carousel-control-next-icon bg-dark rounded-circle"></span>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

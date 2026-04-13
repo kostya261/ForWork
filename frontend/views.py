@@ -25,6 +25,8 @@ from django.template.loader import render_to_string
 from weasyprint import HTML
 import tempfile
 
+from warehouse_locations.models import WarehouseRack, WarehouseCell
+
 User = get_user_model()
 
 
@@ -64,19 +66,19 @@ def dashboard(request):
 
     # Документы
     pending_docs = (
-        WarehouseReceipt.objects.filter(status='draft').count() +
-        WarehouseExpense.objects.filter(status='draft').count() +
-        WarehouseTransfer.objects.filter(status='draft').count() +
-        WarehouseStocktake.objects.filter(status='draft').count() +
-        InventoryIssue.objects.filter(status__in=['draft', 'pending']).count() +
-        InventoryWriteOff.objects.filter(status='draft').count() +
-        InventoryTransfer.objects.filter(status='draft').count() +
-        InventoryStocktake.objects.filter(status='draft').count() +
-        WorkOrder.objects.filter(status='draft').count() +
-        CompletionAct.objects.filter(status='draft').count() +
-        Invoice.objects.filter(status='draft').count() +
-        InvoiceFactura.objects.filter(status='draft').count() +
-        MaterialRequest.objects.filter(status__in=['draft', 'pending']).count()
+            WarehouseReceipt.objects.filter(status='draft').count() +
+            WarehouseExpense.objects.filter(status='draft').count() +
+            WarehouseTransfer.objects.filter(status='draft').count() +
+            WarehouseStocktake.objects.filter(status='draft').count() +
+            InventoryIssue.objects.filter(status__in=['draft', 'pending']).count() +
+            InventoryWriteOff.objects.filter(status='draft').count() +
+            InventoryTransfer.objects.filter(status='draft').count() +
+            InventoryStocktake.objects.filter(status='draft').count() +
+            WorkOrder.objects.filter(status='draft').count() +
+            CompletionAct.objects.filter(status='draft').count() +
+            Invoice.objects.filter(status='draft').count() +
+            InvoiceFactura.objects.filter(status='draft').count() +
+            MaterialRequest.objects.filter(status__in=['draft', 'pending']).count()
     )
 
     # Последние задачи
@@ -427,10 +429,13 @@ def warehouse_create(request):
     from manufacturers.models import Manufacturer
     from departments.models import Department
 
+    cells = WarehouseCell.objects.all().select_related('rack')
+
     context = {
         'categories': Category.objects.all(),
         'manufacturers': Manufacturer.objects.all(),
         'departments': Department.objects.all(),
+        'cells': cells,
         'unit_choices': WarehouseItem.UNIT_CHOICES,
     }
 
@@ -446,11 +451,14 @@ def warehouse_edit(request, pk):
     from manufacturers.models import Manufacturer
     from departments.models import Department
 
+    cells = WarehouseCell.objects.all().select_related('rack')
+
     context = {
         'item': item,
         'categories': Category.objects.all(),
         'manufacturers': Manufacturer.objects.all(),
         'departments': Department.objects.all(),
+        'cells': cells,
         'unit_choices': WarehouseItem.UNIT_CHOICES,
     }
 
@@ -1349,13 +1357,87 @@ def inventory_category_list(request):
     categories = InventoryCategory.objects.all()
     return render(request, 'frontend/inventory_category_list.html', {'categories': categories})
 
+
 @login_required
 def inventory_category_create(request):
     categories = InventoryCategory.objects.all()
     return render(request, 'frontend/inventory_category_form.html', {'categories': categories})
+
 
 @login_required
 def inventory_category_edit(request, pk):
     category = get_object_or_404(InventoryCategory, pk=pk)
     categories = InventoryCategory.objects.exclude(pk=pk)
     return render(request, 'frontend/inventory_category_form.html', {'category': category, 'categories': categories})
+
+
+# ========== Стеллажи ==========
+@login_required
+def rack_list(request):
+    """Список стеллажей по отделам"""
+    racks = WarehouseRack.objects.all().select_related('department').prefetch_related('cells')
+
+    department_filter = request.GET.get('department', '')
+    if department_filter:
+        racks = racks.filter(department_id=department_filter)
+
+    departments = Department.objects.all()
+
+    context = {
+        'racks': racks,
+        'departments': departments,
+        'current_filters': {'department': department_filter}
+    }
+    return render(request, 'frontend/rack_list.html', context)
+
+
+@login_required
+def rack_detail(request, pk):
+    """Детальная страница стеллажа с ячейками"""
+    rack = get_object_or_404(WarehouseRack.objects.select_related('department').prefetch_related('cells', 'images'),
+                             pk=pk)
+    return render(request, 'frontend/rack_detail.html', {'rack': rack})
+
+
+@login_required
+def rack_create(request):
+    departments = Department.objects.all()
+    return render(request, 'frontend/rack_form.html', {'departments': departments})
+
+
+@login_required
+def rack_edit(request, pk):
+    rack = get_object_or_404(WarehouseRack, pk=pk)
+    departments = Department.objects.all()
+    return render(request, 'frontend/rack_form.html', {'rack': rack, 'departments': departments})
+
+
+# ========== Ячейки ==========
+@login_required
+def cell_list(request):
+    cells = WarehouseCell.objects.all().select_related('rack', 'rack__department')
+    return render(request, 'frontend/cell_list.html', {'cells': cells})
+
+
+@login_required
+def cell_detail(request, pk):
+    cell = get_object_or_404(
+        WarehouseCell.objects.select_related('rack', 'rack__department').prefetch_related('images', 'items'), pk=pk)
+    return render(request, 'frontend/cell_detail.html', {'cell': cell})
+
+
+@login_required
+def cell_create(request):
+    racks = WarehouseRack.objects.all().select_related('department')
+    preselected_rack = request.GET.get('rack')
+    return render(request, 'frontend/cell_form.html', {
+        'racks': racks,
+        'preselected_rack': int(preselected_rack) if preselected_rack else None
+    })
+
+
+@login_required
+def cell_edit(request, pk):
+    cell = get_object_or_404(WarehouseCell, pk=pk)
+    racks = WarehouseRack.objects.all().select_related('department')
+    return render(request, 'frontend/cell_form.html', {'cell': cell, 'racks': racks})

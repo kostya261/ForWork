@@ -64,6 +64,16 @@ class WarehouseItem(models.Model):
         verbose_name='Отдел'
     )
 
+    # Ячейка на складе
+    cell = models.ForeignKey(
+        'warehouse_locations.WarehouseCell',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='items',
+        verbose_name='Место хранения (ячейка)'
+    )
+
     # Изображения
     images = models.ManyToManyField(
         'gallery.Image',
