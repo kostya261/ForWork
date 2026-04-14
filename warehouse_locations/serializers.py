@@ -26,6 +26,7 @@ class WarehouseCellSerializer(serializers.ModelSerializer):
 class WarehouseCellListSerializer(serializers.ModelSerializer):
     """Краткий сериализатор для списка"""
     rack_name = serializers.CharField(source='rack.name', read_only=True)
+    items_count = serializers.SerializerMethodField()
 
     class Meta:
         model = WarehouseCell

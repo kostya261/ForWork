@@ -1,9 +1,11 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+
+from warehouse_locations.models import WarehouseCell, WarehouseRack
 from .models import MaterialRequest, MaterialRequestItem, InventoryIssue, InventoryIssueItem, WarehouseTransfer, \
     WarehouseStocktake, InventoryWriteOff, InventoryTransfer, InventoryStocktake
 from .models import WarehouseReceipt
-from warehouse.models import WarehouseTransaction
+from warehouse.models import WarehouseTransaction, WarehouseItem
 
 
 @receiver(post_save, sender=MaterialRequest)
@@ -99,11 +101,16 @@ def process_expense_conduct(sender, instance, **kwargs):
 
 @receiver(post_save, sender=WarehouseTransfer)
 def process_transfer_conduct(sender, instance, **kwargs):
-    """При проведении перемещения — переносим остатки"""
+    """Умное перемещение с поиском существующих позиций"""
     if instance.status == 'conducted':
         for item in instance.items.all():
+            # Проверяем наличие на складе-отправителе
             if item.warehouse_item.quantity >= item.quantity:
-                # Списываем с отправителя
+                # Уменьшаем остаток на складе-отправителе
+                item.warehouse_item.quantity -= item.quantity
+                item.warehouse_item.save()
+
+                # Создаём транзакцию
                 WarehouseTransaction.objects.create(
                     item=item.warehouse_item,
                     transaction_type='move',
@@ -113,9 +120,78 @@ def process_transfer_conduct(sender, instance, **kwargs):
                     comment=f'Перемещение по накладной №{instance.number}',
                     created_by=instance.conducted_by or instance.created_by
                 )
-                # Обновляем остаток (уменьшаем на старом складе)
-                item.warehouse_item.quantity -= item.quantity
-                item.warehouse_item.save()
+
+                # 🔥 УМНОЕ ПЕРЕМЕЩЕНИЕ
+                source_item = item.warehouse_item
+
+                # 1. Ищем такой же товар на складе-получателе (по названию и артикулу)
+                existing_items = WarehouseItem.objects.filter(
+                    department=instance.to_department,
+                    name=source_item.name,
+                    article=source_item.article
+                )
+
+                target_item = None
+
+                if existing_items.exists():
+                    # 2. Ищем с такой же ячейкой (по названию)
+                    if source_item.cell:
+                        same_cell_item = existing_items.filter(
+                            cell__name=source_item.cell.name,
+                            cell__rack__name=source_item.cell.rack.name
+                        ).first()
+                        if same_cell_item:
+                            target_item = same_cell_item
+
+                    # 3. Если не нашли с такой же ячейкой — берём первый попавшийся (или в «Общую»)
+                    if not target_item:
+                        # Ищем ячейку «Общая»
+                        default_rack, _ = WarehouseRack.objects.get_or_create(
+                            department=instance.to_department,
+                            name='Основной',
+                            defaults={'number': 'ОСН'}
+                        )
+                        default_cell, _ = WarehouseCell.objects.get_or_create(
+                            rack=default_rack,
+                            name='Общая',
+                            defaults={'number': 'ОБЩ'}
+                        )
+                        target_item = existing_items.filter(cell=default_cell).first()
+                        if not target_item:
+                            target_item = existing_items.first()
+
+                if target_item:
+                    # Плюсуем к существующему
+                    target_item.quantity += item.quantity
+                    target_item.save()
+                else:
+                    # Создаём новый в ячейке «Общая»
+                    default_rack, _ = WarehouseRack.objects.get_or_create(
+                        department=instance.to_department,
+                        name='Основной',
+                        defaults={'number': 'ОСН'}
+                    )
+                    default_cell, _ = WarehouseCell.objects.get_or_create(
+                        rack=default_rack,
+                        name='Общая',
+                        defaults={'number': 'ОБЩ'}
+                    )
+
+                    new_item = WarehouseItem.objects.create(
+                        name=source_item.name,
+                        article=source_item.article,
+                        description=source_item.description,
+                        category=source_item.category,
+                        manufacturer=source_item.manufacturer,
+                        quantity=item.quantity,
+                        unit=source_item.unit,
+                        min_stock=source_item.min_stock,
+                        purchase_price=source_item.purchase_price,
+                        retail_price=source_item.retail_price,
+                        department=instance.to_department,
+                        cell=default_cell
+                    )
+                    new_item.images.set(source_item.images.all())
 
 
 @receiver(post_save, sender=WarehouseStocktake)

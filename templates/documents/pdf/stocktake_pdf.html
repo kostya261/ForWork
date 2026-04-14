@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Инвентаризация №{{ warehousestocktake.number }}</title>
+    <style>
+        @page { size: A4; margin: 1.5cm; }
+        body { font-family: 'DejaVu Sans', Arial, sans-serif; font-size: 12px; color: #333; }
+        .header { text-align: center; margin-bottom: 25px; }
+        .header h1 { font-size: 22px; margin-bottom: 5px; color: #2c3e50; }
+        .doc-info { float: right; width: 250px; border: 1px solid #ddd; padding: 10px; margin-bottom: 20px; }
+        .doc-info table { width: 100%; }
+        .doc-info td { padding: 3px 0; }
+        .doc-info .label { font-weight: bold; color: #666; }
+        table.items { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        table.items th { background-color: #2c3e50; color: white; padding: 8px; text-align: left; }
+        table.items td { padding: 8px; border-bottom: 1px solid #ddd; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .text-success { color: #198754; }
+        .text-danger { color: #dc3545; }
+        .signatures { margin-top: 60px; display: flex; justify-content: space-between; }
+        .signature { width: 200px; text-align: center; }
+        .signature .line { border-bottom: 1px solid #333; margin-bottom: 5px; }
+        .clearfix::after { content: ""; clear: both; display: table; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ИНВЕНТАРИЗАЦИЯ №{{ warehousestocktake.number }}</h1>
+        <p>от {{ warehousestocktake.stocktake_date|date:"d.m.Y" }}</p>
+    </div>
+
+    <div class="clearfix">
+        <div class="doc-info">
+            <table>
+                <tr><td class="label">Номер:</td><td>{{ warehousestocktake.number }}</td></tr>
+                <tr><td class="label">Дата:</td><td>{{ warehousestocktake.stocktake_date|date:"d.m.Y" }}</td></tr>
+                <tr><td class="label">Статус:</td><td>{{ warehousestocktake.get_status_display }}</td></tr>
+            </table>
+        </div>
+    </div>
+
+    <p><strong>Склад:</strong> {{ warehousestocktake.department.name }}</p>
+
+    <table class="items">
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>Товар</th>
+                <th>Артикул</th>
+                <th class="text-center">Учётное кол-во</th>
+                <th class="text-center">Фактическое кол-во</th>
+                <th class="text-center">Разница</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in warehousestocktake.items.all %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ item.warehouse_item.name }}</td>
+                <td>{{ item.warehouse_item.article|default:"—" }}</td>
+                <td class="text-center">{{ item.book_quantity }} {{ item.warehouse_item.get_unit_display }}</td>
+                <td class="text-center">{{ item.actual_quantity }} {{ item.warehouse_item.get_unit_display }}</td>
+                <td class="text-center {% if item.difference > 0 %}text-success{% elif item.difference < 0 %}text-danger{% endif %}">
+                    {% if item.difference > 0 %}+{% endif %}{{ item.difference }} {{ item.warehouse_item.get_unit_display }}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" style="text-align:center; padding:20px;">Нет товаров</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if warehousestocktake.comment %}
+    <p style="margin-top:20px;"><strong>Примечание:</strong> {{ warehousestocktake.comment }}</p>
+    {% endif %}
+
+    <div class="signatures">
+        <div class="signature"><div class="line">&nbsp;</div><span>Председатель комиссии</span></div>
+        <div class="signature"><div class="line">&nbsp;</div><span>Член комиссии</span></div>
+        <div class="signature"><div class="line">&nbsp;</div><span>МОЛ</span></div>
+    </div>
+</body>
+</html>

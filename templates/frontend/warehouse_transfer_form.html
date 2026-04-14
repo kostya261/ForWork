@@ -25,16 +25,16 @@
                 {% csrf_token %}
 
                 <div class="row g-3 mb-4">
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <label class="form-label">Склад-отправитель <span class="text-danger">*</span></label>
-                        <select name="from_department" id="from_department" class="form-select" required>
+                        <select name="from_department" id="from_department" class="form-select" required onchange="loadWarehouseItems()">
                             <option value="">Выберите склад</option>
                             {% for d in departments %}
-                                <option value="{{ d.id }}" {% if transfer.from_department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+                                <option value="{{ d.id }}" {% if transfer.from_department_id == d.id or default_department.id == d.id %}selected{% endif %}>{{ d.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <label class="form-label">Склад-получатель <span class="text-danger">*</span></label>
                         <select name="to_department" id="to_department" class="form-select" required>
                             <option value="">Выберите склад</option>
@@ -43,7 +43,7 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <label class="form-label">Дата перемещения</label>
                         <input type="date" name="transfer_date" id="transfer_date" class="form-control" value="{{ transfer.transfer_date|date:'Y-m-d'|default:'' }}">
                     </div>
@@ -78,30 +78,75 @@
     const transferId = {% if transfer %}{{ transfer.pk }}{% else %}null{% endif %};
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-    const warehouseItems = [
-        {% for item in warehouse_items %}
-        { id: {{ item.id }}, name: "{{ item.name|escapejs }}", article: "{{ item.article|default:''|escapejs }}", unit: "{{ item.get_unit_display }}" }{% if not forloop.last %},{% endif %}
-        {% endfor %}
-    ];
+    // Все товары (загружаются динамически)
+    let warehouseItems = [];
 
+    // Загрузка товаров для выбранного склада-отправителя
+    async function loadWarehouseItems() {
+        const departmentId = document.getElementById('from_department').value;
+        if (!departmentId) {
+            warehouseItems = [];
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/warehouse/?department=${departmentId}&limit=1000`);
+            const data = await response.json();
+            warehouseItems = data.results || data;
+
+            // Обновляем все выпадающие списки товаров
+            document.querySelectorAll('.item-select').forEach(select => {
+                const currentValue = select.value;
+                updateSelectOptions(select);
+                if (currentValue) select.value = currentValue;
+            });
+
+        } catch (error) {
+            console.error('Ошибка загрузки товаров:', error);
+            warehouseItems = [];
+        }
+    }
+
+    // Обновление опций в select
+    function updateSelectOptions(select) {
+        let options = '<option value="">Выберите товар</option>';
+        warehouseItems.forEach(item => {
+            const selected = select.value == item.id ? 'selected' : '';
+            options += `<option value="${item.id}" ${selected}>${item.name} (${item.article || '—'}) - ${item.quantity} ${item.unit_display}</option>`;
+        });
+        select.innerHTML = options;
+    }
+
+    // Добавить строку товара
     function addItemRow() {
         const container = document.getElementById('itemsContainer');
         const row = document.createElement('div');
         row.className = 'row g-2 mb-2 align-items-end item-row';
-        
+
         let options = '<option value="">Выберите товар</option>';
-        warehouseItems.forEach(function(item) {
-            options += '<option value="' + item.id + '">' + item.name + (item.article ? ' (' + item.article + ')' : '') + '</option>';
+        warehouseItems.forEach(item => {
+            options += `<option value="${item.id}">${item.name} (${item.article || '—'}) - ${item.quantity} ${item.unit_display}</option>`;
         });
-        
+
         row.innerHTML = `
-            <div class="col-md-8"><select class="form-select item-select" required>${options}</select></div>
-            <div class="col-md-3"><input type="number" step="0.001" class="form-control item-quantity" placeholder="Кол-во" value="1" required></div>
-            <div class="col-md-1"><button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.item-row').remove();"><i class="bi bi-trash"></i></button></div>
+            <div class="col-md-9">
+                <select class="form-select item-select" required>
+                    ${options}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="number" step="0.001" class="form-control item-quantity" placeholder="Кол-во" value="1" required>
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.item-row').remove();">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
         `;
         container.appendChild(row);
     }
 
+    // Отправка формы
     document.getElementById('transferForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         const submitBtn = this.querySelector('button[type="submit"]');
@@ -110,11 +155,11 @@
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Сохранение...';
 
         const items = [];
-        document.querySelectorAll('.item-row').forEach(function(row) {
+        document.querySelectorAll('.item-row').forEach(row => {
             const select = row.querySelector('.item-select');
-            const q = row.querySelector('.item-quantity');
-            if (select.value && q.value) {
-                items.push({ warehouse_item_id: parseInt(select.value), quantity: parseFloat(q.value) });
+            const qty = row.querySelector('.item-quantity');
+            if (select.value && qty.value) {
+                items.push({ warehouse_item_id: parseInt(select.value), quantity: parseFloat(qty.value) });
             }
         });
 
@@ -133,16 +178,24 @@
             items: items
         };
 
-        const url = transferId ? '/api/documents/transfers/' + transferId + '/' : '/api/documents/transfers/';
+        const url = transferId ? `/api/documents/transfers/${transferId}/` : '/api/documents/transfers/';
         const method = transferId ? 'PATCH' : 'POST';
 
         try {
-            const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }, body: JSON.stringify(data) });
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify(data)
+            });
             const responseText = await response.text();
             if (!response.ok) throw new Error(responseText);
             const result = JSON.parse(responseText);
             const newId = result.id || result.pk;
-            if (!newId) { alert('ID не получен'); window.location.href = '/documents/transfers/'; return; }
+            if (!newId) {
+                alert('ID не получен');
+                window.location.href = '/documents/transfers/';
+                return;
+            }
             window.location.href = '/documents/transfers/' + newId + '/';
         } catch (error) {
             alert('Ошибка: ' + error.message);
@@ -151,6 +204,7 @@
         }
     });
 
+    // Загружаем существующие товары при редактировании
     {% if transfer %}
         {% for item in transfer.items.all %}
             (function() {
@@ -164,5 +218,8 @@
     {% else %}
         addItemRow();
     {% endif %}
+
+    // Загружаем товары при открытии страницы
+    loadWarehouseItems();
 </script>
 {% endblock %}

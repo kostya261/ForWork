@@ -92,20 +92,24 @@
 
                     <div class="col-md-4">
                         <label class="form-label">Отдел</label>
-                        <select name="department" id="department" class="form-select">
+                        <select name="department" id="department" class="form-select" onchange="loadCells()">
                             <option value="">Не выбран</option>
                             {% for d in departments %}
                                 <option value="{{ d.id }}" {% if item.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
+
+                    <!-- 🔥 Место хранения (динамически обновляется) -->
                     <div class="col-md-4">
                         <label class="form-label">Место хранения (ячейка)</label>
                         <select name="cell" id="cell" class="form-select">
-                            <option value="">Не указано</option>
-                            {% for c in cells %}
-                                <option value="{{ c.id }}" {% if item.cell_id == c.id %}selected{% endif %}>{{ c.rack.name }} → {{ c.name }}</option>
-                            {% endfor %}
+                            <option value="">Сначала выберите отдел</option>
+                            {% if item and cells %}
+                                {% for c in cells %}
+                                    <option value="{{ c.id }}" {% if item.cell_id == c.id %}selected{% endif %}>{{ c.rack.name }} → {{ c.name }}</option>
+                                {% endfor %}
+                            {% endif %}
                         </select>
                     </div>
 
@@ -120,7 +124,7 @@
                     </div>
                 </div>
 
-                <!-- Блок загрузки изображений -->
+                <!-- Загрузка изображений -->
                 <div class="mt-4">
                     <label class="form-label">Изображения</label>
                     <div class="d-flex align-items-center gap-2 mb-2">
@@ -157,6 +161,40 @@
 <script>
     const itemId = {% if item %}{{ item.pk }}{% else %}null{% endif %};
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const selectedCellId = {% if item.cell_id %}{{ item.cell_id }}{% else %}null{% endif %};
+
+    // Загрузка ячеек при выборе отдела
+    async function loadCells() {
+        const departmentId = document.getElementById('department').value;
+        const cellSelect = document.getElementById('cell');
+
+        if (!departmentId) {
+            cellSelect.innerHTML = '<option value="">Сначала выберите отдел</option>';
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/cells/?rack__department=${departmentId}&limit=1000`);
+            const data = await response.json();
+            const cells = data.results || data;
+
+            let options = '<option value="">Не указано</option>';
+            cells.forEach(cell => {
+                const selected = (cell.id === selectedCellId) ? 'selected' : '';
+                options += `<option value="${cell.id}" ${selected}>${cell.rack_name} → ${cell.name}</option>`;
+            });
+            cellSelect.innerHTML = options;
+
+            // Обновляем Select2
+            if (typeof $ !== 'undefined') {
+                $('#cell').trigger('change');
+            }
+
+        } catch (error) {
+            console.error('Ошибка загрузки ячеек:', error);
+            cellSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
+        }
+    }
 
     function uploadImages() {
         const input = document.createElement('input');
@@ -206,7 +244,6 @@
 
     function removeImage(btn, imageId) {
         btn.closest('.position-relative').remove();
-
         const imageIds = document.getElementById('imageIds');
         let ids = imageIds.value.split(',').filter(id => id);
         ids = ids.filter(id => parseInt(id) !== imageId);
@@ -239,10 +276,10 @@
             retail_price: document.getElementById('retail_price').value || null,
             image_ids: imageIds ? imageIds.split(',').map(id => parseInt(id)) : []
         };
-        
+
         const url = itemId ? `/api/warehouse/${itemId}/` : '/api/warehouse/';
         const method = itemId ? 'PATCH' : 'POST';
-        
+
         try {
             const response = await fetch(url, {
                 method: method,
@@ -252,19 +289,26 @@
                 },
                 body: JSON.stringify(data),
             });
-            
+
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(JSON.stringify(error));
             }
-            
+
             const result = await response.json();
             window.location.href = `/warehouse/${result.id || itemId}/`;
-            
+
         } catch (error) {
             alert('Ошибка: ' + error.message);
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalText;
+        }
+    });
+
+    // При загрузке страницы, если отдел уже выбран — подгружаем ячейки
+    document.addEventListener('DOMContentLoaded', function() {
+        if (document.getElementById('department').value) {
+            loadCells();
         }
     });
 </script>

@@ -335,12 +335,41 @@ def inventory_edit(request, pk):
 
 @login_required
 def warehouse_list(request):
-    """Список складских позиций"""
+    """Список складских позиций с выбором склада"""
+    user = request.user
     items = WarehouseItem.objects.all().select_related(
-        'category', 'manufacturer', 'department'
+        'category', 'manufacturer', 'department', 'cell', 'cell__rack'
     )
 
-    # Фильтры
+    # Определяем доступные отделы (склады)
+    if user.is_staff or user.is_superuser:
+        available_departments = Department.objects.all()
+    else:
+        # Обычный пользователь видит только свой отдел
+        available_departments = Department.objects.filter(
+            id=user.department_id) if user.department else Department.objects.none()
+
+    # Фильтр по отделу (складу)
+    department_filter = request.GET.get('department', '')
+
+    if department_filter:
+        # Проверяем, что пользователь имеет доступ к выбранному складу
+        if available_departments.filter(id=department_filter).exists():
+            items = items.filter(department_id=department_filter)
+        else:
+            # Если нет доступа — показываем первый доступный
+            first_dept = available_departments.first()
+            if first_dept:
+                items = items.filter(department=first_dept)
+                department_filter = str(first_dept.id)
+    else:
+        # По умолчанию — первый доступный склад
+        first_dept = available_departments.first()
+        if first_dept:
+            items = items.filter(department=first_dept)
+            department_filter = str(first_dept.id)
+
+    # Остальные фильтры
     category_filter = request.GET.get('category', '')
     manufacturer_filter = request.GET.get('manufacturer', '')
     search_query = request.GET.get('search', '')
@@ -368,7 +397,7 @@ def warehouse_list(request):
             Q(description__icontains=search_query)
         )
 
-    # Статистика
+    # Статистика (по отфильтрованным товарам)
     stats = {
         'total': items.count(),
         'total_quantity': items.aggregate(sum=Sum('quantity'))['sum'] or 0,
@@ -376,11 +405,17 @@ def warehouse_list(request):
         'categories': items.values('category').distinct().count(),
     }
 
-    # Категории и производители для фильтров
+    # Категории и производители для фильтров (только те, что есть на выбранном складе)
     from categories.models import Category
     from manufacturers.models import Manufacturer
-    categories = Category.objects.all()
-    manufacturers = Manufacturer.objects.all()
+
+    # Категории, которые есть в отфильтрованных товарах
+    used_category_ids = items.values_list('category_id', flat=True).distinct()
+    categories = Category.objects.filter(id__in=used_category_ids)
+
+    # Производители, которые есть в отфильтрованных товарах
+    used_manufacturer_ids = items.values_list('manufacturer_id', flat=True).distinct()
+    manufacturers = Manufacturer.objects.filter(id__in=used_manufacturer_ids)
 
     # Пагинация
     from django.core.paginator import Paginator
@@ -393,7 +428,9 @@ def warehouse_list(request):
         'stats': stats,
         'categories': categories,
         'manufacturers': manufacturers,
+        'departments': available_departments,  # Все доступные склады для переключателя
         'current_filters': {
+            'department': department_filter,
             'category': category_filter,
             'manufacturer': manufacturer_filter,
             'low_stock': low_stock_only,
@@ -444,14 +481,16 @@ def warehouse_create(request):
 
 @login_required
 def warehouse_edit(request, pk):
-    """Редактирование складской позиции"""
     item = get_object_or_404(WarehouseItem, pk=pk)
 
     from categories.models import Category
     from manufacturers.models import Manufacturer
     from departments.models import Department
 
-    cells = WarehouseCell.objects.all().select_related('rack')
+    # 🔥 Только ячейки отдела этого товара
+    cells = WarehouseCell.objects.filter(
+        rack__department=item.department
+    ).select_related('rack')
 
     context = {
         'item': item,
@@ -461,7 +500,6 @@ def warehouse_edit(request, pk):
         'cells': cells,
         'unit_choices': WarehouseItem.UNIT_CHOICES,
     }
-
     return render(request, 'frontend/warehouse_form.html', context)
 
 
@@ -880,10 +918,21 @@ def warehouse_transfer_detail(request, pk):
 
 @login_required
 def warehouse_transfer_create(request):
+    user = request.user
     departments = Department.objects.all()
-    warehouse_items = WarehouseItem.objects.all()
+
+    # 🔥 По умолчанию показываем товары первого доступного склада
+    # или склада пользователя
+    if user.is_staff or user.is_superuser:
+        default_dept = departments.first()
+    else:
+        default_dept = user.department
+
+    warehouse_items = WarehouseItem.objects.filter(
+        department=default_dept) if default_dept else WarehouseItem.objects.none()
+
     return render(request, 'frontend/warehouse_transfer_form.html',
-                  {'departments': departments, 'warehouse_items': warehouse_items})
+                  {'departments': departments, 'warehouse_items': warehouse_items, 'default_department': default_dept})
 
 
 @login_required
@@ -1441,3 +1490,327 @@ def cell_edit(request, pk):
     cell = get_object_or_404(WarehouseCell, pk=pk)
     racks = WarehouseRack.objects.all().select_related('department')
     return render(request, 'frontend/cell_form.html', {'cell': cell, 'racks': racks})
+
+
+@login_required
+def warehouse_transfer_pdf(request, pk):
+    return generate_pdf(request, WarehouseTransfer, pk, 'documents/pdf/transfer_pdf.html', 'transfer')
+
+
+@login_required
+def warehouse_stocktake_pdf(request, pk):
+    return generate_pdf(request, WarehouseStocktake, pk, 'documents/pdf/stocktake_pdf.html', 'stocktake')
+
+
+@login_required
+def warehouse_stock_report(request):
+    """Отчёт по остаткам на складах"""
+    user = request.user
+
+    # Определяем доступные склады
+    if user.is_staff or user.is_superuser:
+        departments = Department.objects.all()
+    else:
+        departments = Department.objects.filter(id=user.department_id) if user.department else Department.objects.none()
+
+    # Фильтры
+    category_filter = request.GET.get('category', '')
+    search_query = request.GET.get('search', '')
+
+    # Получаем все товары с выбранных складов
+    items = WarehouseItem.objects.all().select_related('category', 'department')
+
+    if category_filter:
+        items = items.filter(category_id=category_filter)
+    if search_query:
+        items = items.filter(
+            Q(name__icontains=search_query) |
+            Q(article__icontains=search_query)
+        )
+
+    # Группируем по товару (название + артикул)
+    from collections import defaultdict
+    stock_data = defaultdict(lambda: {'total': 0, 'by_dept': {}})
+
+    for item in items:
+        key = f"{item.name}|{item.article or ''}"
+        stock_data[key]['name'] = item.name
+        stock_data[key]['article'] = item.article
+        stock_data[key]['category'] = item.category.name if item.category else '—'
+        stock_data[key]['unit'] = item.get_unit_display()
+        stock_data[key]['total'] += item.quantity
+        stock_data[key]['by_dept'][item.department_id] = item.quantity
+
+    # Преобразуем в список для шаблона
+    report_data = []
+    for key, data in stock_data.items():
+        row = {
+            'name': data['name'],
+            'article': data['article'],
+            'category': data['category'],
+            'unit': data['unit'],
+            'total': data['total'],
+            'quantities': []
+        }
+        for dept in departments:
+            row['quantities'].append(data['by_dept'].get(dept.id, 0))
+        report_data.append(row)
+
+    # Сортировка
+    report_data.sort(key=lambda x: x['name'])
+
+    # Категории для фильтра
+    categories = Category.objects.all()
+
+    context = {
+        'report_data': report_data,
+        'departments': departments,
+        'categories': categories,
+        'current_filters': {
+            'category': category_filter,
+            'search': search_query,
+        }
+    }
+
+    return render(request, 'frontend/warehouse_stock_report.html', context)
+
+
+@login_required
+def warehouse_turnover_report(request):
+    """Оборотная ведомость по складу"""
+    user = request.user
+
+    # Определяем доступные склады
+    if user.is_staff or user.is_superuser:
+        departments = Department.objects.all()
+    else:
+        departments = Department.objects.filter(id=user.department_id) if user.department else Department.objects.none()
+
+    # Фильтры
+    department_filter = request.GET.get('department', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+
+    # По умолчанию — текущий месяц
+    today = timezone.now().date()
+    if not date_from:
+        date_from = today.replace(day=1).strftime('%Y-%m-%d')
+    if not date_to:
+        # Последний день месяца
+        next_month = today.replace(day=28) + timezone.timedelta(days=4)
+        date_to = (next_month - timezone.timedelta(days=next_month.day)).strftime('%Y-%m-%d')
+
+    # Получаем транзакции
+    from warehouse.models import WarehouseTransaction
+    transactions = WarehouseTransaction.objects.select_related(
+        'item', 'item__category', 'from_department', 'to_department'
+    ).filter(
+        created_at__date__gte=date_from,
+        created_at__date__lte=date_to
+    )
+
+    if department_filter:
+        transactions = transactions.filter(
+            Q(from_department_id=department_filter) | Q(to_department_id=department_filter)
+        )
+
+    # Группируем по товару
+    from collections import defaultdict
+    turnover_data = defaultdict(lambda: {
+        'name': '', 'article': '', 'category': '', 'unit': '',
+        'in': 0, 'out': 0, 'start_balance': 0, 'end_balance': 0
+    })
+
+    for t in transactions:
+        item = t.item
+        key = item.id
+
+        turnover_data[key]['name'] = item.name
+        turnover_data[key]['article'] = item.article or ''
+        turnover_data[key]['category'] = item.category.name if item.category else '—'
+        turnover_data[key]['unit'] = item.get_unit_display()
+
+        if t.transaction_type == 'in':
+            turnover_data[key]['in'] += t.quantity
+        elif t.transaction_type == 'out':
+            turnover_data[key]['out'] += t.quantity
+        elif t.transaction_type == 'move':
+            # Для перемещения: списание с отправителя, приход получателю
+            if t.from_department_id and str(t.from_department_id) == department_filter:
+                turnover_data[key]['out'] += t.quantity
+            if t.to_department_id and str(t.to_department_id) == department_filter:
+                turnover_data[key]['in'] += t.quantity
+
+    # Считаем начальные и конечные остатки
+    from django.db.models import Sum
+    for key, data in turnover_data.items():
+        # Начальный остаток = текущий - приход + расход
+        current_qty = WarehouseItem.objects.get(id=key).quantity
+        data['end_balance'] = current_qty
+        data['start_balance'] = current_qty - data['in'] + data['out']
+
+    report_data = list(turnover_data.values())
+    report_data.sort(key=lambda x: x['name'])
+
+    context = {
+        'report_data': report_data,
+        'departments': departments,
+        'current_filters': {
+            'department': department_filter,
+            'date_from': date_from,
+            'date_to': date_to,
+        }
+    }
+
+    return render(request, 'frontend/warehouse_turnover_report.html', context)
+
+
+@login_required
+def warehouse_stock_report_pdf(request):
+    """PDF отчёта по остаткам"""
+    user = request.user
+
+    if user.is_staff or user.is_superuser:
+        departments = Department.objects.all()
+    else:
+        departments = Department.objects.filter(id=user.department_id) if user.department else Department.objects.none()
+
+    category_filter = request.GET.get('category', '')
+    search_query = request.GET.get('search', '')
+
+    items = WarehouseItem.objects.all().select_related('category', 'department')
+
+    if category_filter:
+        items = items.filter(category_id=category_filter)
+    if search_query:
+        items = items.filter(
+            Q(name__icontains=search_query) |
+            Q(article__icontains=search_query)
+        )
+
+    from collections import defaultdict
+    stock_data = defaultdict(lambda: {'total': 0, 'by_dept': {}})
+
+    for item in items:
+        key = f"{item.name}|{item.article or ''}"
+        stock_data[key]['name'] = item.name
+        stock_data[key]['article'] = item.article
+        stock_data[key]['category'] = item.category.name if item.category else '—'
+        stock_data[key]['unit'] = item.get_unit_display()
+        stock_data[key]['total'] += item.quantity
+        stock_data[key]['by_dept'][item.department_id] = item.quantity
+
+    report_data = []
+    for key, data in stock_data.items():
+        row = {
+            'name': data['name'],
+            'article': data['article'],
+            'category': data['category'],
+            'unit': data['unit'],
+            'total': data['total'],
+            'quantities': []
+        }
+        for dept in departments:
+            row['quantities'].append(data['by_dept'].get(dept.id, 0))
+        report_data.append(row)
+
+    report_data.sort(key=lambda x: x['name'])
+
+    html_string = render_to_string('documents/pdf/stock_report_pdf.html', {
+        'report_data': report_data,
+        'departments': departments,
+        'date': timezone.now().date(),
+    }, request=request)
+
+    html = HTML(string=html_string, base_url=request.build_absolute_uri())
+    result = html.write_pdf()
+
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = 'inline; filename="stock_report.pdf"'
+    response.write(result)
+
+    return response
+
+
+@login_required
+def warehouse_turnover_report_pdf(request):
+    """PDF оборотной ведомости"""
+    user = request.user
+
+    if user.is_staff or user.is_superuser:
+        departments = Department.objects.all()
+    else:
+        departments = Department.objects.filter(id=user.department_id) if user.department else Department.objects.none()
+
+    department_filter = request.GET.get('department', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+
+    today = timezone.now().date()
+    if not date_from:
+        date_from = today.replace(day=1).strftime('%Y-%m-%d')
+    if not date_to:
+        next_month = today.replace(day=28) + timezone.timedelta(days=4)
+        date_to = (next_month - timezone.timedelta(days=next_month.day)).strftime('%Y-%m-%d')
+
+    from warehouse.models import WarehouseTransaction
+    transactions = WarehouseTransaction.objects.select_related(
+        'item', 'item__category', 'from_department', 'to_department'
+    ).filter(
+        created_at__date__gte=date_from,
+        created_at__date__lte=date_to
+    )
+
+    if department_filter:
+        transactions = transactions.filter(
+            Q(from_department_id=department_filter) | Q(to_department_id=department_filter)
+        )
+
+    from collections import defaultdict
+    turnover_data = defaultdict(lambda: {
+        'name': '', 'article': '', 'category': '', 'unit': '',
+        'in': 0, 'out': 0, 'start_balance': 0, 'end_balance': 0
+    })
+
+    for t in transactions:
+        item = t.item
+        key = item.id
+
+        turnover_data[key]['name'] = item.name
+        turnover_data[key]['article'] = item.article or ''
+        turnover_data[key]['category'] = item.category.name if item.category else '—'
+        turnover_data[key]['unit'] = item.get_unit_display()
+
+        if t.transaction_type == 'in':
+            turnover_data[key]['in'] += t.quantity
+        elif t.transaction_type == 'out':
+            turnover_data[key]['out'] += t.quantity
+        elif t.transaction_type == 'move':
+            if t.from_department_id and str(t.from_department_id) == department_filter:
+                turnover_data[key]['out'] += t.quantity
+            if t.to_department_id and str(t.to_department_id) == department_filter:
+                turnover_data[key]['in'] += t.quantity
+
+    for key, data in turnover_data.items():
+        current_qty = WarehouseItem.objects.get(id=key).quantity
+        data['end_balance'] = current_qty
+        data['start_balance'] = current_qty - data['in'] + data['out']
+
+    report_data = list(turnover_data.values())
+    report_data.sort(key=lambda x: x['name'])
+
+    html_string = render_to_string('documents/pdf/turnover_report_pdf.html', {
+        'report_data': report_data,
+        'date_from': date_from,
+        'date_to': date_to,
+        'department': departments.filter(id=department_filter).first() if department_filter else None,
+    }, request=request)
+
+    html = HTML(string=html_string, base_url=request.build_absolute_uri())
+    result = html.write_pdf()
+
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = 'inline; filename="turnover_report.pdf"'
+    response.write(result)
+
+    return response

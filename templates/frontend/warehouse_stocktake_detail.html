@@ -15,6 +15,11 @@
             <h2 class="fw-light mt-2">Инвентаризация №{{ stocktake.number }}</h2>
         </div>
         <div class="d-flex gap-2">
+
+            <a href="{% url 'frontend:warehouse_stocktake_pdf' stocktake.pk %}" class="btn btn-outline-secondary" target="_blank">
+                <i class="bi bi-file-pdf"></i> PDF
+            </a>
+
             {% if stocktake.status == 'draft' %}
                 <button class="btn btn-success" onclick="conductStocktake(); return false;">
                     <i class="bi bi-check-lg"></i> Провести

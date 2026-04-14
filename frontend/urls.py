@@ -119,8 +119,14 @@ urlpatterns = [
     path('documents/invoice-facturas/<int:pk>/pdf/', views.invoice_factura_pdf, name='invoice_factura_pdf'),
     path('documents/receipts/<int:pk>/pdf/', views.warehouse_receipt_pdf, name='warehouse_receipt_pdf'),
     path('documents/expenses/<int:pk>/pdf/', views.warehouse_expense_pdf, name='warehouse_expense_pdf'),
+    path('documents/transfers/<int:pk>/pdf/', views.warehouse_transfer_pdf, name='warehouse_transfer_pdf'),
+    path('documents/stocktakes/<int:pk>/pdf/', views.warehouse_stocktake_pdf, name='warehouse_stocktake_pdf'),
     path('documents/completion-acts/<int:pk>/pdf/', views.completion_act_pdf, name='completion_act_pdf'),
     path('documents/work-orders/<int:pk>/pdf/', views.work_order_pdf, name='work_order_pdf'),
+    path('warehouse/stock-report/', views.warehouse_stock_report, name='warehouse_stock_report'),
+    path('warehouse/turnover-report/', views.warehouse_turnover_report, name='warehouse_turnover_report'),
+    path('warehouse/stock-report/pdf/', views.warehouse_stock_report_pdf, name='warehouse_stock_report_pdf'),
+    path('warehouse/turnover-report/pdf/', views.warehouse_turnover_report_pdf, name='warehouse_turnover_report_pdf'),
 
     # Стеллажи
     path('warehouse/racks/', views.rack_list, name='rack_list'),
