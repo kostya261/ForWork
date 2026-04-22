@@ -16,16 +16,44 @@
     <!-- Статистика -->
     <div class="row g-3 mb-4">
         <div class="col-md-3">
-            <div class="card bg-light"><div class="card-body text-center py-2"><h5 class="mb-0">{{ stats.total }}</h5><small class="text-muted">Всего</small></div></div>
+            <a href="{% url 'frontend:invoice_list' %}" class="text-decoration-none">
+                <div class="card bg-light h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0">{{ stats.total }}</h5>
+                        <small class="text-muted">Всего</small>
+                    </div>
+                </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card bg-warning bg-opacity-10"><div class="card-body text-center py-2"><h5 class="mb-0 text-warning">{{ stats.draft }}</h5><small class="text-warning">Черновики</small></div></div>
+            <a href="{% url 'frontend:invoice_list' %}?status=draft" class="text-decoration-none">
+                <div class="card bg-warning bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-warning">{{ stats.draft }}</h5>
+                        <small class="text-warning">Черновики</small>
+                    </div>
+                </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card bg-info bg-opacity-10"><div class="card-body text-center py-2"><h5 class="mb-0 text-info">{{ stats.sent }}</h5><small class="text-info">Отправлены</small></div></div>
+            <a href="{% url 'frontend:invoice_list' %}?status=sent" class="text-decoration-none">
+                <div class="card bg-info bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-info">{{ stats.sent }}</h5>
+                        <small class="text-info">Отправлены</small>
+                    </div>
+                </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card bg-success bg-opacity-10"><div class="card-body text-center py-2"><h5 class="mb-0 text-success">{{ stats.paid }}</h5><small class="text-success">Оплачены</small></div></div>
+            <a href="{% url 'frontend:invoice_list' %}?status=paid" class="text-decoration-none">
+                <div class="card bg-success bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-success">{{ stats.paid }}</h5>
+                        <small class="text-success">Оплачены</small>
+                    </div>
+                </div>
+            </a>
         </div>
     </div>
     

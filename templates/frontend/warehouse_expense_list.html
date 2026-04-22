@@ -12,35 +12,66 @@
             <i class="bi bi-plus-lg me-1"></i>Создать
         </a>
     </div>
-    
-    <!-- Статистика -->
+
+    <!-- Статистика (кликабельные карточки) -->
     <div class="row g-3 mb-4">
         <div class="col-md-4">
-            <div class="card bg-light">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0">{{ stats.total }}</h5>
-                    <small class="text-muted">Всего</small>
+            <a href="{% url 'frontend:warehouse_expense_list' %}" class="text-decoration-none">
+                <div class="card bg-light h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0">{{ stats.total }}</h5>
+                        <small class="text-muted">Всего</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-4">
-            <div class="card bg-warning bg-opacity-10">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0 text-warning">{{ stats.draft }}</h5>
-                    <small class="text-warning">Черновики</small>
+            <a href="{% url 'frontend:warehouse_expense_list' %}?status=draft" class="text-decoration-none">
+                <div class="card bg-warning bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-warning">{{ stats.draft }}</h5>
+                        <small class="text-warning">Черновики</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-4">
-            <div class="card bg-success bg-opacity-10">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0 text-success">{{ stats.conducted }}</h5>
-                    <small class="text-success">Проведены</small>
+            <a href="{% url 'frontend:warehouse_expense_list' %}?status=conducted" class="text-decoration-none">
+                <div class="card bg-success bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-success">{{ stats.conducted }}</h5>
+                        <small class="text-success">Проведены</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
-    
+
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <select name="status" class="form-select" onchange="this.form.submit()">
+                        <option value="">Все статусы</option>
+                        <option value="draft" {% if current_filters.status == 'draft' %}selected{% endif %}>Черновик</option>
+                        <option value="conducted" {% if current_filters.status == 'conducted' %}selected{% endif %}>Проведён</option>
+                        <option value="cancelled" {% if current_filters.status == 'cancelled' %}selected{% endif %}>Отменён</option>
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <div class="input-group">
+                        <input type="text" name="search" class="form-control" placeholder="Номер, получатель..." value="{{ current_filters.search }}">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
+                        {% if current_filters.status or current_filters.search %}
+                            <a href="{% url 'frontend:warehouse_expense_list' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Таблица -->
     <div class="card">
         <div class="table-responsive">

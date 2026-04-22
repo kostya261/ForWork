@@ -9,10 +9,38 @@
         <a href="{% url 'frontend:inventory_writeoff_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Создать</a>
     </div>
     
+    <!-- Статистика -->
     <div class="row g-3 mb-4">
-        <div class="col-md-4"><div class="card bg-light"><div class="card-body text-center py-2"><h5 class="mb-0">{{ stats.total }}</h5><small class="text-muted">Всего</small></div></div></div>
-        <div class="col-md-4"><div class="card bg-warning bg-opacity-10"><div class="card-body text-center py-2"><h5 class="mb-0 text-warning">{{ stats.draft }}</h5><small class="text-warning">Черновики</small></div></div></div>
-        <div class="col-md-4"><div class="card bg-success bg-opacity-10"><div class="card-body text-center py-2"><h5 class="mb-0 text-success">{{ stats.conducted }}</h5><small class="text-success">Проведены</small></div></div></div>
+        <div class="col-md-4">
+            <a href="{% url 'frontend:inventory_writeoff_list' %}" class="text-decoration-none">
+                <div class="card bg-light h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0">{{ stats.total }}</h5>
+                        <small class="text-muted">Всего</small>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
+            <a href="{% url 'frontend:inventory_writeoff_list' %}?status=draft" class="text-decoration-none">
+                <div class="card bg-warning bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-warning">{{ stats.draft }}</h5>
+                        <small class="text-warning">Черновики</small>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
+            <a href="{% url 'frontend:inventory_writeoff_list' %}?status=conducted" class="text-decoration-none">
+                <div class="card bg-success bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-success">{{ stats.conducted }}</h5>
+                        <small class="text-success">Проведены</small>
+                    </div>
+                </div>
+            </a>
+        </div>
     </div>
     
     <div class="card"><div class="table-responsive"><table class="table table-hover mb-0">

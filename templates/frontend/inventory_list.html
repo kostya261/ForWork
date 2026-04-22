@@ -13,39 +13,47 @@
         </a>
     </div>
 
-    <!-- Статистика -->
+        <!-- Статистика -->
     <div class="row g-3 mb-4">
         <div class="col-md-3">
-            <div class="card bg-light">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0">{{ stats.total }}</h5>
-                    <small class="text-muted">Всего</small>
+            <a href="{% url 'frontend:inventory_list' %}" class="text-decoration-none">
+                <div class="card bg-light h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0">{{ stats.total }}</h5>
+                        <small class="text-muted">Всего</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card bg-success bg-opacity-10">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0 text-success">{{ stats.active }}</h5>
-                    <small class="text-success">Активно</small>
+            <a href="{% url 'frontend:inventory_list' %}?status=active" class="text-decoration-none">
+                <div class="card bg-success bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-success">{{ stats.active }}</h5>
+                        <small class="text-success">Активно</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card bg-warning bg-opacity-10">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0 text-warning">{{ stats.repair }}</h5>
-                    <small class="text-warning">В ремонте</small>
+            <a href="{% url 'frontend:inventory_list' %}?status=repair" class="text-decoration-none">
+                <div class="card bg-warning bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-warning">{{ stats.repair }}</h5>
+                        <small class="text-warning">В ремонте</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card bg-secondary bg-opacity-10">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0 text-secondary">{{ stats.decommissioned }}</h5>
-                    <small class="text-secondary">Списано</small>
+            <a href="{% url 'frontend:inventory_list' %}?status=decommissioned" class="text-decoration-none">
+                <div class="card bg-secondary bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-secondary">{{ stats.decommissioned }}</h5>
+                        <small class="text-secondary">Списано</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 

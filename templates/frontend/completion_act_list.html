@@ -1,9 +1,115 @@
 {% extends 'base.html' %}
+
 {% block title %}Акты выполненных работ | ForWork ERP{% endblock %}
+
 {% block content %}
 <div class="fade-in">
-    <div class="d-flex justify-content-between align-items-center mb-4"><h2 class="fw-light mb-0"><i class="bi bi-check-circle me-2"></i>Акты выполненных работ</h2><a href="{% url 'frontend:completion_act_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Создать</a></div>
-    <div class="row g-3 mb-4"><div class="col-md-4"><div class="card bg-light"><div class="card-body text-center py-2"><h5 class="mb-0">{{ stats.total }}</h5><small>Всего</small></div></div></div><div class="col-md-4"><div class="card bg-warning bg-opacity-10"><div class="card-body text-center py-2"><h5 class="mb-0 text-warning">{{ stats.draft }}</h5><small>Черновики</small></div></div></div><div class="col-md-4"><div class="card bg-success bg-opacity-10"><div class="card-body text-center py-2"><h5 class="mb-0 text-success">{{ stats.signed }}</h5><small>Подписаны</small></div></div></div></div>
-    <div class="card"><div class="table-responsive"><table class="table table-hover mb-0"><thead class="table-light"><tr><th>Номер</th><th>Задача</th><th>Дата выполнения</th><th>Статус</th><th>Создал</th></tr></thead><tbody>{% for a in acts %}<tr class="cursor-pointer" onclick="window.location='{% url 'frontend:completion_act_detail' a.pk %}'"><td>{{ a.number }}</td><td><a href="{% url 'frontend:task_detail' a.task.pk %}">#{{ a.task.pk }} - {{ a.task.name }}</a></td><td>{{ a.completion_date|date:"d.m.Y" }}</td><td><span class="badge {% if a.status == 'draft' %}bg-warning{% elif a.status == 'signed' %}bg-success{% else %}bg-secondary{% endif %}">{{ a.get_status_display }}</span></td><td>{{ a.created_by.get_full_name|default:a.created_by.username }}</td></tr>{% empty %}<tr><td colspan="5" class="text-center py-5 text-muted"><i class="bi bi-check-circle fs-1"></i><p>Нет актов</p><a href="{% url 'frontend:completion_act_create' %}" class="btn btn-sm btn-primary">Создать</a></td></tr>{% endfor %}</tbody></table></div></div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-light mb-0">
+            <i class="bi bi-check-circle me-2"></i>Акты выполненных работ
+        </h2>
+        <a href="{% url 'frontend:completion_act_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>Создать
+        </a>
+    </div>
+
+    <!-- Статистика (кликабельные карточки) -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <a href="{% url 'frontend:completion_act_list' %}" class="text-decoration-none">
+                <div class="card bg-light h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0">{{ stats.total }}</h5>
+                        <small class="text-muted">Всего</small>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
+            <a href="{% url 'frontend:completion_act_list' %}?status=draft" class="text-decoration-none">
+                <div class="card bg-warning bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-warning">{{ stats.draft }}</h5>
+                        <small class="text-warning">Черновики</small>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
+            <a href="{% url 'frontend:completion_act_list' %}?status=signed" class="text-decoration-none">
+                <div class="card bg-success bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-success">{{ stats.signed }}</h5>
+                        <small class="text-success">Подписаны</small>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <select name="status" class="form-select" onchange="this.form.submit()">
+                        <option value="">Все статусы</option>
+                        <option value="draft" {% if current_filters.status == 'draft' %}selected{% endif %}>Черновик</option>
+                        <option value="signed" {% if current_filters.status == 'signed' %}selected{% endif %}>Подписан</option>
+                        <option value="cancelled" {% if current_filters.status == 'cancelled' %}selected{% endif %}>Отменён</option>
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <div class="input-group">
+                        <input type="text" name="search" class="form-control" placeholder="Номер, задача..." value="{{ current_filters.search }}">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
+                        {% if current_filters.status or current_filters.search %}
+                            <a href="{% url 'frontend:completion_act_list' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Таблица -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                <tr>
+                    <th>Номер</th>
+                    <th>Задача</th>
+                    <th>Дата выполнения</th>
+                    <th>Статус</th>
+                    <th>Создал</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for a in acts %}
+                <tr class="cursor-pointer" onclick="window.location='{% url 'frontend:completion_act_detail' a.pk %}'">
+                    <td>{{ a.number }}</td>
+                    <td><a href="{% url 'frontend:task_detail' a.task.pk %}">#{{ a.task.pk }} - {{ a.task.name }}</a></td>
+                    <td>{{ a.completion_date|date:"d.m.Y" }}</td>
+                    <td>
+                        <span class="badge {% if a.status == 'draft' %}bg-warning{% elif a.status == 'signed' %}bg-success{% else %}bg-secondary{% endif %}">
+                            {{ a.get_status_display }}
+                        </span>
+                    </td>
+                    <td>{{ a.created_by.get_full_name|default:a.created_by.username }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center py-5 text-muted">
+                        <i class="bi bi-check-circle fs-1"></i>
+                        <p>Нет актов</p>
+                        <a href="{% url 'frontend:completion_act_create' %}" class="btn btn-sm btn-primary">Создать</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 {% endblock %}

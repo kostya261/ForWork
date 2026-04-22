@@ -8,7 +8,7 @@ from django.contrib import messages
 from categories.models import Category
 from inventory_categories.models import InventoryCategory
 from manufacturers.models import Manufacturer
-from tasks.models import Task
+from tasks.models import Task, TaskStatusHistory
 from tasks.serializers import TaskListSerializer
 from counterparties.models import Counterparty
 from departments.models import Department
@@ -37,27 +37,21 @@ def dashboard(request):
 
     # Мои задачи
     if user.is_staff or user.is_superuser:
-        # Админ видит все задачи
         my_tasks = Task.objects.exclude(
             status__in=['completed', 'closed', 'cancelled']
         ).distinct()
     else:
-        # Обычный пользователь видит только свои
         my_tasks = Task.objects.filter(
             Q(responsible=user) | Q(co_executors=user) | Q(created_by=user)
         ).exclude(status__in=['completed', 'closed', 'cancelled']).distinct()
 
     my_tasks_count = my_tasks.count()
     overdue_tasks = my_tasks.filter(deadline__lt=today).count()
-    recent_tasks = my_tasks.order_by('-created_at')[:15]
-
-    my_tasks_count = my_tasks.count()
-    overdue_tasks = my_tasks.filter(deadline__lt=today).count()
+    overdue_tasks_list = my_tasks.filter(deadline__lt=today)[:5]
 
     # Товары с низким остатком
-    low_stock = WarehouseItem.objects.filter(quantity__lte=F('min_stock')).count()
     low_stock_items = WarehouseItem.objects.filter(quantity__lte=F('min_stock'))[:5]
-
+    low_stock = WarehouseItem.objects.filter(quantity__lte=F('min_stock')).count()
     warehouse_items = WarehouseItem.objects.count()
 
     # Инвентарь
@@ -66,23 +60,79 @@ def dashboard(request):
 
     # Документы
     pending_docs = (
-            WarehouseReceipt.objects.filter(status='draft').count() +
-            WarehouseExpense.objects.filter(status='draft').count() +
-            WarehouseTransfer.objects.filter(status='draft').count() +
-            WarehouseStocktake.objects.filter(status='draft').count() +
-            InventoryIssue.objects.filter(status__in=['draft', 'pending']).count() +
-            InventoryWriteOff.objects.filter(status='draft').count() +
-            InventoryTransfer.objects.filter(status='draft').count() +
-            InventoryStocktake.objects.filter(status='draft').count() +
-            WorkOrder.objects.filter(status='draft').count() +
-            CompletionAct.objects.filter(status='draft').count() +
-            Invoice.objects.filter(status='draft').count() +
-            InvoiceFactura.objects.filter(status='draft').count() +
-            MaterialRequest.objects.filter(status__in=['draft', 'pending']).count()
+        WarehouseReceipt.objects.filter(status='draft').count() +
+        WarehouseExpense.objects.filter(status='draft').count() +
+        WarehouseTransfer.objects.filter(status='draft').count() +
+        WarehouseStocktake.objects.filter(status='draft').count() +
+        InventoryIssue.objects.filter(status__in=['draft', 'pending']).count() +
+        InventoryWriteOff.objects.filter(status='draft').count() +
+        InventoryTransfer.objects.filter(status='draft').count() +
+        InventoryStocktake.objects.filter(status='draft').count() +
+        WorkOrder.objects.filter(status='draft').count() +
+        CompletionAct.objects.filter(status='draft').count() +
+        Invoice.objects.filter(status='draft').count() +
+        InvoiceFactura.objects.filter(status='draft').count() +
+        MaterialRequest.objects.filter(status__in=['draft', 'pending']).count()
     )
 
     # Последние задачи
     recent_tasks = my_tasks.order_by('-created_at')[:10]
+
+    # ЖИВАЯ ЛЕНТА АКТИВНОСТИ
+    recent_activities = []
+
+    # Последние приходы
+    for receipt in WarehouseReceipt.objects.select_related('supplier').filter(status='conducted').order_by('-created_at')[:3]:
+        recent_activities.append({
+            'time': receipt.created_at,
+            'text': f'📥 Приход №{receipt.number} от {receipt.supplier.name} на {receipt.total_sum:.2f} ₽',
+            'link': f'/documents/receipts/{receipt.pk}/'
+        })
+
+    # Последние расходы
+    for expense in WarehouseExpense.objects.select_related('counterparty').filter(status='conducted').order_by('-created_at')[:3]:
+        name = expense.counterparty.name if expense.counterparty else 'внутреннее списание'
+        recent_activities.append({
+            'time': expense.created_at,
+            'text': f'📤 Расход №{expense.number} ({name}) на {expense.total_sum:.2f} ₽',
+            'link': f'/documents/expenses/{expense.pk}/'
+        })
+
+    # Последние перемещения
+    for transfer in WarehouseTransfer.objects.select_related('from_department', 'to_department').filter(status='conducted').order_by('-created_at')[:3]:
+        recent_activities.append({
+            'time': transfer.created_at,
+            'text': f'🔄 Перемещение №{transfer.number}: {transfer.from_department.name} → {transfer.to_department.name}',
+            'link': f'/documents/transfers/{transfer.pk}/'
+        })
+
+    # Новые задачи
+    for task in Task.objects.order_by('-created_at')[:3]:
+        recent_activities.append({
+            'time': task.created_at,
+            'text': f'📋 Задача #{task.pk}: {task.name[:50]}{"..." if len(task.name) > 50 else ""}',
+            'link': f'/tasks/{task.pk}/'
+        })
+
+    # Изменения статусов задач
+    for history in TaskStatusHistory.objects.select_related('task', 'changed_by').order_by('-created_at')[:3]:
+        recent_activities.append({
+            'time': history.created_at,
+            'text': f'🔄 Задача #{history.task.pk}: {history.get_new_status_display()}',
+            'link': f'/tasks/{history.task.pk}/'
+        })
+
+    # Новые счета
+    for invoice in Invoice.objects.select_related('counterparty').order_by('-created_at')[:3]:
+        recent_activities.append({
+            'time': invoice.created_at,
+            'text': f'🧾 Счёт №{invoice.number} для {invoice.counterparty.name} на {invoice.total_sum:.2f} ₽',
+            'link': f'/documents/invoices/{invoice.pk}/'
+        })
+
+    # Сортируем и берём последние 10
+    recent_activities.sort(key=lambda x: x['time'], reverse=True)
+    recent_activities = recent_activities[:10]
 
     context = {
         'today': today,
@@ -95,6 +145,8 @@ def dashboard(request):
         'available_inventory': available_inventory,
         'pending_docs': pending_docs,
         'recent_tasks': recent_tasks,
+        'overdue_tasks_list': overdue_tasks_list,
+        'recent_activities': recent_activities,
     }
 
     return render(request, 'frontend/dashboard.html', context)
@@ -124,13 +176,21 @@ def task_list(request):
     priority_filter = request.GET.get('priority', '')
     my_only = request.GET.get('my', '')
     search_query = request.GET.get('search', '')
+    overdue = request.GET.get('overdue', '')
 
     if status_filter:
         tasks = tasks.filter(status=status_filter)
     if priority_filter:
         tasks = tasks.filter(priority=priority_filter)
+    '''    if my_only == 'true':
+        tasks = tasks.filter(responsible=user)'''
     if my_only == 'true':
-        tasks = tasks.filter(responsible=user)
+        tasks = tasks.filter(
+            Q(responsible=user) |
+            Q(co_executors=user) |
+            Q(created_by=user)).distinct()
+    if overdue == 'true':
+        tasks = tasks.filter(deadline__lt=timezone.now()).exclude(status__in=['completed', 'closed', 'cancelled'])
     if search_query:
         tasks = tasks.filter(
             Q(name__icontains=search_query) |
@@ -874,11 +934,29 @@ def task_edit(request, pk):
 @login_required
 def warehouse_expense_list(request):
     expenses = WarehouseExpense.objects.all().select_related('department', 'counterparty', 'created_by')
-    stats = {'total': expenses.count(), 'draft': expenses.filter(status='draft').count(),
-             'conducted': expenses.filter(status='conducted').count()}
-    departments = Department.objects.all()
-    return render(request, 'frontend/warehouse_expense_list.html',
-                  {'expenses': expenses, 'stats': stats, 'departments': departments})
+
+    status_filter = request.GET.get('status', '')
+    search_query = request.GET.get('search', '')
+
+    if status_filter:
+        expenses = expenses.filter(status=status_filter)
+    if search_query:
+        expenses = expenses.filter(
+            Q(number__icontains=search_query) |
+            Q(counterparty__name__icontains=search_query)
+        )
+
+    stats = {
+        'total': expenses.count(),
+        'draft': expenses.filter(status='draft').count(),
+        'conducted': expenses.filter(status='conducted').count(),
+    }
+
+    return render(request, 'frontend/warehouse_expense_list.html', {
+        'expenses': expenses,
+        'stats': stats,
+        'current_filters': {'status': status_filter, 'search': search_query}
+    })
 
 
 @login_required
@@ -903,9 +981,23 @@ def warehouse_expense_create(request):
 @login_required
 def warehouse_transfer_list(request):
     transfers = WarehouseTransfer.objects.all().select_related('from_department', 'to_department', 'created_by')
-    stats = {'total': transfers.count(), 'draft': transfers.filter(status='draft').count(),
-             'conducted': transfers.filter(status='conducted').count()}
-    return render(request, 'frontend/warehouse_transfer_list.html', {'transfers': transfers, 'stats': stats})
+
+    # 🔥 Добавляем фильтр по статусу
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        transfers = transfers.filter(status=status_filter)
+
+    stats = {
+        'total': transfers.count(),
+        'draft': transfers.filter(status='draft').count(),
+        'conducted': transfers.filter(status='conducted').count(),
+    }
+
+    return render(request, 'frontend/warehouse_transfer_list.html', {
+        'transfers': transfers,
+        'stats': stats,
+        'current_filters': {'status': status_filter}  # 🔥 для подсветки активного фильтра
+    })
 
 
 @login_required
@@ -938,9 +1030,23 @@ def warehouse_transfer_create(request):
 @login_required
 def warehouse_stocktake_list(request):
     stocktakes = WarehouseStocktake.objects.all().select_related('department', 'created_by')
-    stats = {'total': stocktakes.count(), 'draft': stocktakes.filter(status='draft').count(),
-             'conducted': stocktakes.filter(status='conducted').count()}
-    return render(request, 'frontend/warehouse_stocktake_list.html', {'stocktakes': stocktakes, 'stats': stats})
+
+    # 🔥 Добавляем фильтр по статусу
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        stocktakes = stocktakes.filter(status=status_filter)
+
+    stats = {
+        'total': stocktakes.count(),
+        'draft': stocktakes.filter(status='draft').count(),
+        'conducted': stocktakes.filter(status='conducted').count(),
+    }
+
+    return render(request, 'frontend/warehouse_stocktake_list.html', {
+        'stocktakes': stocktakes,
+        'stats': stats,
+        'current_filters': {'status': status_filter}
+    })
 
 
 @login_required
@@ -961,7 +1067,6 @@ def warehouse_stocktake_create(request):
 
 @login_required
 def inventory_issue_list(request):
-    """Список выдач инвентаря"""
     issues = InventoryIssue.objects.all().select_related('department', 'task', 'created_by')
 
     status_filter = request.GET.get('status', '')
@@ -1019,9 +1124,22 @@ def inventory_issue_create(request):
 @login_required
 def inventory_writeoff_list(request):
     writeoffs = InventoryWriteOff.objects.all().select_related('department', 'created_by')
-    stats = {'total': writeoffs.count(), 'draft': writeoffs.filter(status='draft').count(),
-             'conducted': writeoffs.filter(status='conducted').count()}
-    return render(request, 'frontend/inventory_writeoff_list.html', {'writeoffs': writeoffs, 'stats': stats})
+
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        writeoffs = writeoffs.filter(status=status_filter)
+
+    stats = {
+        'total': writeoffs.count(),
+        'draft': writeoffs.filter(status='draft').count(),
+        'conducted': writeoffs.filter(status='conducted').count(),
+    }
+
+    return render(request, 'frontend/inventory_writeoff_list.html', {
+        'writeoffs': writeoffs,
+        'stats': stats,
+        'current_filters': {'status': status_filter}
+    })
 
 
 @login_required
@@ -1043,9 +1161,22 @@ def inventory_writeoff_create(request):
 @login_required
 def inventory_transfer_list(request):
     transfers = InventoryTransfer.objects.all().select_related('from_department', 'to_department', 'created_by')
-    stats = {'total': transfers.count(), 'draft': transfers.filter(status='draft').count(),
-             'conducted': transfers.filter(status='conducted').count()}
-    return render(request, 'frontend/inventory_transfer_list.html', {'transfers': transfers, 'stats': stats})
+
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        transfers = transfers.filter(status=status_filter)
+
+    stats = {
+        'total': transfers.count(),
+        'draft': transfers.filter(status='draft').count(),
+        'conducted': transfers.filter(status='conducted').count(),
+    }
+
+    return render(request, 'frontend/inventory_transfer_list.html', {
+        'transfers': transfers,
+        'stats': stats,
+        'current_filters': {'status': status_filter}
+    })
 
 
 @login_required
@@ -1069,9 +1200,22 @@ def inventory_transfer_create(request):
 @login_required
 def inventory_stocktake_list(request):
     stocktakes = InventoryStocktake.objects.all().select_related('department', 'created_by')
-    stats = {'total': stocktakes.count(), 'draft': stocktakes.filter(status='draft').count(),
-             'conducted': stocktakes.filter(status='conducted').count()}
-    return render(request, 'frontend/inventory_stocktake_list.html', {'stocktakes': stocktakes, 'stats': stats})
+
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        stocktakes = stocktakes.filter(status=status_filter)
+
+    stats = {
+        'total': stocktakes.count(),
+        'draft': stocktakes.filter(status='draft').count(),
+        'conducted': stocktakes.filter(status='conducted').count(),
+    }
+
+    return render(request, 'frontend/inventory_stocktake_list.html', {
+        'stocktakes': stocktakes,
+        'stats': stats,
+        'current_filters': {'status': status_filter}
+    })
 
 
 @login_required
@@ -1093,9 +1237,29 @@ def inventory_stocktake_create(request):
 @login_required
 def work_order_list(request):
     orders = WorkOrder.objects.all().select_related('task', 'created_by')
-    stats = {'total': orders.count(), 'draft': orders.filter(status='draft').count(),
-             'issued': orders.filter(status='issued').count()}
-    return render(request, 'frontend/work_order_list.html', {'orders': orders, 'stats': stats})
+
+    status_filter = request.GET.get('status', '')
+    search_query = request.GET.get('search', '')
+
+    if status_filter:
+        orders = orders.filter(status=status_filter)
+    if search_query:
+        orders = orders.filter(
+            Q(number__icontains=search_query) |
+            Q(task__name__icontains=search_query)
+        )
+
+    stats = {
+        'total': orders.count(),
+        'draft': orders.filter(status='draft').count(),
+        'issued': orders.filter(status='issued').count(),
+    }
+
+    return render(request, 'frontend/work_order_list.html', {
+        'orders': orders,
+        'stats': stats,
+        'current_filters': {'status': status_filter, 'search': search_query}
+    })
 
 
 @login_required
@@ -1122,9 +1286,29 @@ def work_order_create(request):
 @login_required
 def completion_act_list(request):
     acts = CompletionAct.objects.all().select_related('task', 'created_by')
-    stats = {'total': acts.count(), 'draft': acts.filter(status='draft').count(),
-             'signed': acts.filter(status='signed').count()}
-    return render(request, 'frontend/completion_act_list.html', {'acts': acts, 'stats': stats})
+
+    status_filter = request.GET.get('status', '')
+    search_query = request.GET.get('search', '')
+
+    if status_filter:
+        acts = acts.filter(status=status_filter)
+    if search_query:
+        acts = acts.filter(
+            Q(number__icontains=search_query) |
+            Q(task__name__icontains=search_query)
+        )
+
+    stats = {
+        'total': acts.count(),
+        'draft': acts.filter(status='draft').count(),
+        'signed': acts.filter(status='signed').count(),
+    }
+
+    return render(request, 'frontend/completion_act_list.html', {
+        'acts': acts,
+        'stats': stats,
+        'current_filters': {'status': status_filter, 'search': search_query}
+    })
 
 
 @login_required
@@ -1257,16 +1441,27 @@ def invoice_edit(request, pk):
 @login_required
 def invoice_factura_list(request):
     facturas = InvoiceFactura.objects.all().select_related('counterparty', 'created_by')
+
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        facturas = facturas.filter(status=status_filter)
+
     stats = {
         'total': facturas.count(),
         'draft': facturas.filter(status='draft').count(),
         'issued': facturas.filter(status='issued').count(),
     }
+
     from django.core.paginator import Paginator
     page = request.GET.get('page', 1)
     paginator = Paginator(facturas, 20)
     facturas_page = paginator.get_page(page)
-    return render(request, 'frontend/invoice_factura_list.html', {'facturas': facturas_page, 'stats': stats})
+
+    return render(request, 'frontend/invoice_factura_list.html', {
+        'facturas': facturas_page,
+        'stats': stats,
+        'current_filters': {'status': status_filter}
+    })
 
 
 @login_required
