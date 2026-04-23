@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block title %}Новое списание ОС | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div><nav aria-label="breadcrumb"><ol class="breadcrumb mb-0"><li class="breadcrumb-item"><a href="{% url 'frontend:inventory_writeoff_list' %}">Списание ОС</a></li><li class="breadcrumb-item active">Новое</li></ol></nav><h2 class="fw-light mt-2">Создание списания ОС</h2></div>
+        <a href="{% url 'frontend:inventory_writeoff_list' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg me-1"></i>Отмена</a>
+    </div>
+    
+    <div class="card"><div class="card-body">
+        <form id="writeoffForm">{% csrf_token %}
+            <div class="row g-3 mb-4">
+                <div class="col-md-4"><label class="form-label">Отдел <span class="text-danger">*</span></label><select name="department" id="department" class="form-select" required><option value="">Выберите отдел</option>{% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select></div>
+                <div class="col-md-4"><label class="form-label">Дата списания</label><input type="date" name="writeoff_date" id="writeoff_date" class="form-control" value="{{ today|date:'Y-m-d' }}"></div>
+                <div class="col-12"><label class="form-label">Причина списания <span class="text-danger">*</span></label><textarea name="reason" id="reason" class="form-control" rows="2" required></textarea></div>
+                <div class="col-12"><label class="form-label">Комментарий</label><textarea name="comment" id="comment" class="form-control" rows="2"></textarea></div>
+            </div>
+
+            <h5 class="mb-3">Инвентарь</h5><div id="itemsContainer"></div>
+            <button type="button" class="btn btn-outline-primary mt-3" onclick="addItemRow()"><i class="bi bi-plus-lg me-1"></i>Добавить</button>
+            <hr class="my-4">
+            <div class="d-flex gap-2"><button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>Создать</button><a href="{% url 'frontend:inventory_writeoff_list' %}" class="btn btn-outline-secondary">Отмена</a></div>
+        </form>
+    </div></div>
+</div>
+
+<script>
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const inventoryItems = [{% for item in inventory_items %}{ id: {{ item.id }}, name: "{{ item.name|escapejs }}", invNum: "{{ item.inventory_number }}" }{% if not forloop.last %},{% endif %}{% endfor %}];
+
+    function addItemRow(){
+        const row = document.createElement('div'); row.className = 'row g-2 mb-2 align-items-end item-row';
+        let opts = '<option value="">Выберите инвентарь</option>';
+        inventoryItems.forEach(i => opts += `<option value="${i.id}">${i.name} (${i.invNum})</option>`);
+        row.innerHTML = `<div class="col-md-9"><select class="form-select item-select" required>${opts}</select></div><div class="col-md-2"><input type="number" class="form-control item-qty" value="1" min="1" required></div><div class="col-md-1"><button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.item-row').remove();"><i class="bi bi-trash"></i></button></div>`;
+        document.getElementById('itemsContainer').appendChild(row);
+    }
+
+    document.getElementById('writeoffForm').addEventListener('submit', async function(e){
+        e.preventDefault();
+        const btn = this.querySelector('button[type="submit"]'), orig = btn.innerHTML;
+        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Создание...';
+        const items = []; document.querySelectorAll('.item-row').forEach(r => { const s = r.querySelector('.item-select'), q = r.querySelector('.item-qty'); if(s.value && q.value) items.push({ inventory_item: parseInt(s.value), quantity: parseInt(q.value) }); });
+        if(!items.length){ alert('Добавьте инвентарь'); btn.disabled = false; btn.innerHTML = orig; return; }
+        const data = { department: parseInt(document.getElementById('department').value), writeoff_date: document.getElementById('writeoff_date').value, reason: document.getElementById('reason').value, comment: document.getElementById('comment').value, items };
+        try {
+            const r = await fetch('/api/documents/inventory-writeoffs/', { method:'POST', headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrfToken }, body: JSON.stringify(data) });
+            const t = await r.text(); if(!r.ok) throw new Error(t);
+            const res = JSON.parse(t), id = res.id || res.pk;
+            window.location.href = '/documents/inventory-writeoffs/' + id + '/';
+        } catch(e){ alert('Ошибка: '+e.message); btn.disabled = false; btn.innerHTML = orig; }
+    });
+    addItemRow();
+</script>
+{% endblock %}

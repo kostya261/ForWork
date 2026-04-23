@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Счёт-фактура №{{ factura.number }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+        body {
+            font-family: 'DejaVu Sans', Arial, sans-serif;
+            font-size: 11px;
+            line-height: 1.4;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 22px;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+        .doc-info {
+            float: right;
+            width: 250px;
+            border: 1px solid #ddd;
+            padding: 8px;
+            margin-bottom: 15px;
+        }
+        .doc-info table {
+            width: 100%;
+        }
+        .doc-info td {
+            padding: 2px 0;
+        }
+        .doc-info .label {
+            font-weight: bold;
+            color: #666;
+        }
+        .counterparty {
+            margin-bottom: 20px;
+        }
+        .counterparty h3 {
+            margin-bottom: 8px;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        table.items {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 10px;
+        }
+        table.items th {
+            background-color: #2c3e50;
+            color: white;
+            padding: 6px 4px;
+            text-align: center;
+            font-weight: normal;
+        }
+        table.items td {
+            padding: 5px 4px;
+            border-bottom: 1px solid #ddd;
+        }
+        table.items .text-right {
+            text-align: right;
+        }
+        table.items .text-center {
+            text-align: center;
+        }
+        .totals {
+            float: right;
+            width: 300px;
+            margin-top: 15px;
+        }
+        .totals table {
+            width: 100%;
+        }
+        .totals td {
+            padding: 3px 0;
+        }
+        .totals .total {
+            font-size: 14px;
+            font-weight: bold;
+            border-top: 2px solid #333;
+            padding-top: 8px;
+        }
+        .signatures {
+            margin-top: 50px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .signature {
+            width: 180px;
+            text-align: center;
+            font-size: 11px;
+        }
+        .signature .line {
+            border-bottom: 1px solid #333;
+            margin-bottom: 5px;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 9px;
+            color: #999;
+            text-align: center;
+        }
+        .clearfix::after {
+            content: "";
+            clear: both;
+            display: table;
+        }
+        .basis-info {
+            background-color: #f5f5f5;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>СЧЁТ-ФАКТУРА №{{ factura.number }}</h1>
+        <p>от {{ factura.factura_date|date:"d.m.Y" }}</p>
+    </div>
+
+    <div class="clearfix">
+        <div class="doc-info">
+            <table>
+                <tr><td class="label">Номер:</td><td>{{ factura.number }}</td></tr>
+                <tr><td class="label">Дата:</td><td>{{ factura.factura_date|date:"d.m.Y" }}</td></tr>
+                <tr><td class="label">Статус:</td><td>{{ factura.get_status_display }}</td></tr>
+            </table>
+        </div>
+
+        <div class="company-info">
+            <h3>Продавец:</h3>
+            <p><strong>ООО «ФорВорк»</strong><br>
+            ИНН 1234567890, КПП 123456789<br>
+            г. Москва, ул. Примерная, д. 1</p>
+        </div>
+    </div>
+
+    <div class="counterparty">
+        <h3>Покупатель:</h3>
+        <p>
+            <strong>{{ factura.counterparty.name }}</strong><br>
+            {% if factura.counterparty.inn %}ИНН: {{ factura.counterparty.inn }}<br>{% endif %}
+            {% if factura.counterparty.legal_address %}{{ factura.counterparty.legal_address }}{% endif %}
+        </p>
+    </div>
+
+    {% if factura.expense or factura.completion_act %}
+    <div class="basis-info">
+        <strong>Документ-основание:</strong>
+        {% if factura.expense %}
+            Расходная накладная №{{ factura.expense.number }} от {{ factura.expense.expense_date|date:"d.m.Y" }}
+        {% elif factura.completion_act %}
+            Акт выполненных работ №{{ factura.completion_act.number }} от {{ factura.completion_act.completion_date|date:"d.m.Y" }}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <table class="items">
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>Наименование товара (работ, услуг)</th>
+                <th>Кол-во</th>
+                <th>Ед.</th>
+                <th>Цена без НДС, ₽</th>
+                <th>Стоимость без НДС, ₽</th>
+                <th>НДС, %</th>
+                <th>Сумма НДС, ₽</th>
+                <th>Всего с НДС, ₽</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in factura.items.all %}
+            <tr>
+                <td class="text-center">{{ forloop.counter }}</td>
+                <td>{{ item.description }}</td>
+                <td class="text-center">{{ item.quantity }}</td>
+                <td class="text-center">{{ item.unit }}</td>
+                <td class="text-right">{{ item.price|floatformat:2 }}</td>
+                <td class="text-right">{{ item.total|floatformat:2 }}</td>
+                <td class="text-center">{{ item.vat_rate }}%</td>
+                <td class="text-right">{{ item.vat_amount|floatformat:2 }}</td>
+                <td class="text-right">{{ item.total_with_vat|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="9" style="text-align:center; padding:20px;">Нет позиций</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="totals">
+        <table>
+            <tr>
+                <td>Всего к оплате без НДС:</td>
+                <td style="text-align:right;">{{ factura.total_sum|floatformat:2 }} ₽</td>
+            </tr>
+            <tr>
+                <td>Сумма НДС:</td>
+                <td style="text-align:right;">{{ factura.total_vat|floatformat:2 }} ₽</td>
+            </tr>
+            <tr class="total">
+                <td><strong>Всего к оплате с НДС:</strong></td>
+                <td style="text-align:right;"><strong>{{ factura.total_with_vat|floatformat:2 }} ₽</strong></td>
+            </tr>
+        </table>
+    </div>
+
+    <div style="clear:both;"></div>
+
+    {% if factura.comment %}
+    <p style="margin-top:20px;"><strong>Примечание:</strong> {{ factura.comment }}</p>
+    {% endif %}
+
+    <div class="signatures">
+        <div class="signature">
+            <div class="line">&nbsp;</div>
+            <span>Руководитель</span>
+        </div>
+        <div class="signature">
+            <div class="line">&nbsp;</div>
+            <span>Главный бухгалтер</span>
+        </div>
+        <div class="signature">
+            <div class="line">&nbsp;</div>
+            <span>М.П.</span>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Счёт-фактура является основанием для расчётов по НДС. Без подписи и печати недействителен.</p>
+    </div>
+</body>
+</html>

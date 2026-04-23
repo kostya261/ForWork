@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% load mptt_tags %}
+
+{% block title %}Категории склада | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-light mb-0"><i class="bi bi-tags me-2"></i>Категории склада</h2>
+        <a href="{% url 'frontend:inventory_category_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>Добавить
+        </a>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            {% if categories %}
+                <ul class="mptt-list">
+                    {% recursetree categories %}
+                        <li class="mb-2">
+                            <div class="d-flex align-items-center p-2 bg-light rounded">
+                                <i class="bi bi-folder me-2 text-primary"></i>
+                                <span class="fw-medium">{{ node.name }}</span>
+                                <span class="text-muted ms-2">({{ node.inventory_items.count }} позиций)</span>
+                                <span class="ms-auto">
+                                    <a href="{% url 'frontend:inventory_category_edit' node.pk %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                </span>
+                            </div>
+                            {% if not node.is_leaf_node %}
+                                <ul class="mptt-list mt-2 ms-4">
+                                    {{ children }}
+                                </ul>
+                            {% endif %}
+                        </li>
+                    {% endrecursetree %}
+                </ul>
+            {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-folder fs-1"></i>
+                    <p class="mt-2">Нет категорий</p>
+                    <a href="{% url 'frontend:inventory_category_create' %}" class="btn btn-primary">Создать</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .mptt-list {
+        list-style: none;
+        padding-left: 0;
+    }
+</style>
+{% endblock %}

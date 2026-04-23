@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Остатки по складам</title>
+    <style>
+        @page { size: A4 landscape; margin: 1cm; }
+        body { font-family: 'DejaVu Sans', Arial, sans-serif; font-size: 10px; }
+        h1 { text-align: center; margin-bottom: 10px; }
+        .date { text-align: right; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background-color: #2c3e50; color: white; padding: 6px; text-align: left; }
+        td { padding: 5px; border-bottom: 1px solid #ddd; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+    </style>
+</head>
+<body>
+    <h1>ОСТАТКИ ПО СКЛАДАМ</h1>
+    <div class="date">на {{ date|date:"d.m.Y" }}</div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Товар</th>
+                <th>Артикул</th>
+                <th>Категория</th>
+                {% for dept in departments %}
+                    <th class="text-center">{{ dept.name }}</th>
+                {% endfor %}
+                <th class="text-center">Всего</th>
+                <th>Ед.</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in report_data %}
+            <tr>
+                <td>{{ row.name }}</td>
+                <td>{{ row.article|default:"—" }}</td>
+                <td>{{ row.category }}</td>
+                {% for qty in row.quantities %}
+                    <td class="text-center">{{ qty|floatformat:0 }}</td>
+                {% endfor %}
+                <td class="text-center"><strong>{{ row.total|floatformat:0 }}</strong></td>
+                <td>{{ row.unit }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

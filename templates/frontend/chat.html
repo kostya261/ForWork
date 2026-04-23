@@ -1,0 +1,328 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Чат | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in h-100">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="fw-light mb-0">
+            <i class="bi bi-chat-dots me-2"></i>Чат
+        </h2>
+        <div>
+            <button class="btn btn-outline-primary me-2" onclick="openNewChatModal()" data-bs-toggle="modal" data-bs-target="#newChatModal">
+                <i class="bi bi-plus-lg me-1"></i>Новый чат
+            </button>
+            <button class="btn btn-outline-success" onclick="joinPublicChat()">
+                <i class="bi bi-people me-1"></i>Общий чат
+            </button>
+        </div>
+    </div>
+
+    <div class="row g-0" style="height: calc(100vh - 130px);">
+        <div class="col-md-4 col-lg-3 border-end">
+            <div class="card h-100 rounded-end-0">
+                <div class="card-header bg-white">
+                    <i class="bi bi-chat me-2"></i>Чаты
+                    <button class="btn btn-sm btn-link float-end" onclick="loadRooms()">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div class="list-group list-group-flush overflow-auto" id="roomsList" style="max-height: calc(100vh - 180px);">
+                    <div class="text-center py-4 text-muted">Загрузка...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8 col-lg-9">
+            <div class="card h-100 rounded-start-0">
+                <div class="card-header bg-white d-flex align-items-center">
+                    <i class="bi bi-chat-dots fs-5 me-2"></i>
+                    <span class="fw-medium" id="chatHeaderTitle">Выберите чат</span>
+                </div>
+                <div class="card-body overflow-auto p-3" id="messagesContainer" style="max-height: calc(100vh - 250px);">
+                    <div id="messagesList"></div>
+                </div>
+                <div class="card-footer bg-white" id="messageInputArea" style="display: none;">
+                    <form onsubmit="sendMessage(event); return false;">
+                        {% csrf_token %}
+                        <div class="input-group">
+                            <input type="text" id="messageInput" class="form-control" placeholder="Введите сообщение..." autocomplete="off">
+                            <button class="btn btn-primary" type="submit">
+                                <i class="bi bi-send"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно -->
+<div class="modal fade" id="newChatModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Новый чат</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="form-control mb-3" id="userSearchInput" placeholder="Поиск сотрудника..." oninput="filterUsers()">
+                <div class="list-group" id="usersList" style="max-height: 300px; overflow-y: auto;">
+                    <div class="text-center py-3 text-muted">Загрузка...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const currentUserId = {{ user.pk }};
+    const currentUserName = "{{ user.get_full_name|default:user.username }}";
+    let currentRoomId = null;
+    let allUsers = [];
+
+    // Загрузка комнат
+    async function loadRooms() {
+        try {
+            const response = await fetch('/api/rooms/');
+            const data = await response.json();
+            const rooms = data.results || data;  // ← вот эта строка!
+            const container = document.getElementById('roomsList');
+
+            if (!rooms || rooms.length === 0) {
+                container.innerHTML = '<div class="text-center py-4 text-muted">Нет чатов. Нажмите "Общий чат"</div>';
+                return;
+            }
+
+            container.innerHTML = rooms.map(room => {
+                const isPublic = room.room_type === 'public';
+                const name = isPublic ? '🌐 Общий чат' :
+                    (room.other_participant ? room.other_participant.full_name : 'Чат #' + room.id);
+                const activeClass = currentRoomId === room.id ? 'active' : '';
+
+                return `
+                    <a href="#" class="list-group-item list-group-item-action ${activeClass}" onclick="selectRoom(${room.id}); return false;">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-${isPublic ? 'people' : 'person'}-fill me-2"></i>
+                            <span>${name}</span>
+                        </div>
+                    </a>
+                `;
+            }).join('');
+
+        } catch (error) {
+            document.getElementById('roomsList').innerHTML = '<div class="text-center py-4 text-danger">Ошибка загрузки</div>';
+        }
+    }
+
+    // Присоединиться к общему чату
+    async function joinPublicChat() {
+        try {
+            const response = await fetch('/api/rooms/public/');
+            const room = await response.json();
+            await loadRooms();
+            selectRoom(room.id);
+        } catch (error) {
+            alert('Ошибка подключения к общему чату');
+        }
+    }
+
+    // Выбор комнаты
+    async function selectRoom(roomId) {
+        currentRoomId = roomId;
+
+        // Показываем поле ввода
+        document.getElementById('messageInputArea').style.display = 'block';
+
+        // Загружаем сообщения
+        await loadMessages(roomId);
+
+        // Отмечаем как прочитанные
+        try {
+            await fetch(`/api/rooms/${roomId}/mark_read/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+            });
+        } catch (e) {}
+
+        // Обновляем список (подсветка активного)
+        loadRooms();
+    }
+
+    // Загрузка сообщений
+    async function loadMessages(roomId) {
+        try {
+            // Получаем информацию о комнате
+            const roomResponse = await fetch(`/api/rooms/${roomId}/`);
+            const room = await roomResponse.json();
+
+            // Обновляем заголовок
+            const otherUser = room.participants?.find(p => p.id !== currentUserId);
+            document.getElementById('chatHeaderTitle').textContent =
+                room.room_type === 'public' ? 'Общий чат' : (otherUser?.full_name || 'Личный чат');
+
+            // Получаем сообщения
+            const msgResponse = await fetch(`/api/rooms/${roomId}/messages/?limit=100`);
+            const data = await msgResponse.json();
+            const messages = data.results || data;
+
+            const container = document.getElementById('messagesList');
+
+            if (!messages || messages.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted py-5">Нет сообщений. Напишите первое!</div>';
+                return;
+            }
+
+            // Сортируем по времени (старые сверху)
+            const sortedMessages = [...messages].reverse();
+
+            container.innerHTML = sortedMessages.map(msg => {
+                const isMine = msg.sender === currentUserId;
+                const time = new Date(msg.created_at).toLocaleTimeString('ru', {hour: '2-digit', minute:'2-digit'});
+
+                return `
+                    <div class="d-flex mb-3 ${isMine ? 'justify-content-end' : ''}">
+                        <div style="max-width: 70%;">
+                            ${!isMine ? `<small class="text-muted d-block mb-1">${msg.sender_name}</small>` : ''}
+                            <div class="p-2 px-3 rounded-3 ${isMine ? 'bg-primary text-white' : 'bg-light'}" style="word-break: break-word;">
+                                ${escapeHtml(msg.text)}
+                            </div>
+                            <small class="text-muted d-block mt-1 ${isMine ? 'text-end' : ''}">${time}</small>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Прокрутка вниз
+            const msgContainer = document.getElementById('messagesContainer');
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+
+        } catch (error) {
+            console.error('Ошибка загрузки сообщений:', error);
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Отправка сообщения
+    async function sendMessage(event) {
+        event.preventDefault();
+
+        const input = document.getElementById('messageInput');
+        const text = input.value.trim();
+
+        if (!text || !currentRoomId) return;
+
+        // Временно блокируем кнопку
+        const btn = event.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+
+        try {
+            const response = await fetch(`/api/rooms/${currentRoomId}/send_message/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({ text }),
+            });
+
+            if (response.ok) {
+                input.value = '';
+                await loadMessages(currentRoomId);
+            } else {
+                const error = await response.json();
+                alert('Ошибка: ' + (error.error || 'Не удалось отправить'));
+            }
+        } catch (error) {
+            alert('Ошибка отправки');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // Модалка нового чата
+    async function openNewChatModal() {
+        try {
+            const response = await fetch('/api/users/');
+            const data = await response.json();
+            allUsers = (data.results || data).filter(u => u.id !== currentUserId);
+            renderUsersList(allUsers);
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    function renderUsersList(users) {
+        const container = document.getElementById('usersList');
+
+        if (!users || users.length === 0) {
+            container.innerHTML = '<div class="text-center py-3 text-muted">Нет других пользователей</div>';
+            return;
+        }
+
+        container.innerHTML = users.map(user => `
+            <a href="#" class="list-group-item list-group-item-action" onclick="createPrivateChat(${user.id}); return false;">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-person-circle me-2 fs-5"></i>
+                    <span>${user.full_name || user.username}</span>
+                </div>
+            </a>
+        `).join('');
+    }
+
+    function filterUsers() {
+        const query = document.getElementById('userSearchInput').value.toLowerCase();
+        const filtered = allUsers.filter(u =>
+            (u.full_name || u.username).toLowerCase().includes(query)
+        );
+        renderUsersList(filtered);
+    }
+
+    // Создание личного чата
+    async function createPrivateChat(userId) {
+        try {
+            const response = await fetch('/api/rooms/create_private/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({ user_id: userId }),
+            });
+
+            if (!response.ok) throw new Error('Ошибка создания');
+
+            const room = await response.json();
+
+            // Закрываем модалку
+            bootstrap.Modal.getInstance(document.getElementById('newChatModal')).hide();
+
+            // Обновляем список и выбираем комнату
+            await loadRooms();
+            selectRoom(room.id);
+
+        } catch (error) {
+            alert('Ошибка создания чата');
+        }
+    }
+
+    // Автообновление каждые 3 секунды
+    setInterval(() => {
+        loadRooms();
+        if (currentRoomId) {
+            loadMessages(currentRoomId);
+        }
+    }, 3000);
+
+    // Запуск
+    loadRooms();
+</script>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block title %}Выдача {{ issue.number }} | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:inventory_issue_list' %}">Выдача инвентаря</a></li>
+                    <li class="breadcrumb-item active">{{ issue.number }}</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">Выдача №{{ issue.number }}</h2>
+        </div>
+        <div class="d-flex gap-2">
+            {% if issue.status == 'draft' or issue.status == 'approved' %}
+                <button class="btn btn-success" onclick="issueInventory(); return false;"><i class="bi bi-check-lg"></i> Выдать</button>
+            {% endif %}
+            {% if issue.status == 'issued' %}
+                <button class="btn btn-info" onclick="returnInventory(); return false;"><i class="bi bi-arrow-return-left"></i> Возврат</button>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header"><i class="bi bi-info-circle me-2"></i>Основная информация</div>
+                <div class="card-body">
+                    <div class="row mb-3"><div class="col-md-3 text-muted">Отдел</div><div class="col-md-9">{{ issue.department.name|default:"—" }}</div></div>
+                    <div class="row mb-3"><div class="col-md-3 text-muted">Задача</div><div class="col-md-9">{% if issue.task %}<a href="{% url 'frontend:task_detail' issue.task.pk %}">#{{ issue.task.pk }} - {{ issue.task.name }}</a>{% else %}—{% endif %}</div></div>
+                    <div class="row mb-3"><div class="col-md-3 text-muted">Дата выдачи</div><div class="col-md-9">{{ issue.issue_date|date:"d.m.Y" }}</div></div>
+                    <div class="row mb-3"><div class="col-md-3 text-muted">Статус</div><div class="col-md-9"><span class="badge {% if issue.status == 'draft' %}bg-warning{% elif issue.status == 'issued' %}bg-success{% elif issue.status == 'returned' %}bg-info{% else %}bg-secondary{% endif %} px-3 py-2">{{ issue.get_status_display }}</span></div></div>
+                    <div class="row"><div class="col-md-3 text-muted">Комментарий</div><div class="col-md-9">{{ issue.comment|linebreaks|default:"—" }}</div></div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header"><i class="bi bi-tools me-2"></i>Инвентарь</div>
+                <div class="card-body p-0">
+                    <table class="table mb-0">
+                        <thead class="table-light"><tr><th>Инвентарь</th><th>Инв. номер</th><th>Кол-во</th><th>Ответственный</th><th>Возврат</th></tr></thead>
+                        <tbody>
+                            {% for item in issue.items.all %}
+                            <tr>
+                                <td>{{ item.inventory_item.name }}</td>
+                                <td>{{ item.inventory_item.inventory_number }}</td>
+                                <td>{{ item.quantity }}</td>
+                                <td>{{ item.responsible.get_full_name|default:item.responsible.username }}</td>
+                                <td>{% if item.returned %}✅{% else %}❌{% endif %}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-center py-3 text-muted">Нет инвентаря</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header"><i class="bi bi-person me-2"></i>Кто участвовал</div>
+                <div class="card-body">
+                    <div class="mb-3"><label class="text-muted d-block mb-2">Создал</label><div><i class="bi bi-person me-2"></i>{{ issue.created_by.get_full_name|default:issue.created_by.username }}</div><small class="text-muted">{{ issue.created_at|date:"d.m.Y H:i" }}</small></div>
+                    {% if issue.approved_by %}<div class="mb-3"><label class="text-muted d-block mb-2">Одобрил</label><div><i class="bi bi-check-circle me-2"></i>{{ issue.approved_by.get_full_name }}</div></div>{% endif %}
+                    {% if issue.issued_by %}<div><label class="text-muted d-block mb-2">Выдал</label><div><i class="bi bi-box-arrow-up-right me-2"></i>{{ issue.issued_by.get_full_name }}</div></div>{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const issueId = {{ issue.pk }};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    async function issueInventory() {
+        if (!confirm('Выдать инвентарь?')) return;
+        try {
+            const r = await fetch(`/api/documents/inventory-issues/${issueId}/update_status/`, {method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken},body:JSON.stringify({status:'issued'})});
+            if(r.ok) location.reload(); else alert('Ошибка');
+        } catch(e) { alert('Ошибка: '+e.message); }
+    }
+    
+    async function returnInventory() {
+        if (!confirm('Отметить возврат всего инвентаря?')) return;
+        try {
+            const r = await fetch(`/api/documents/inventory-issues/${issueId}/update_status/`, {method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken},body:JSON.stringify({status:'returned'})});
+            if(r.ok) location.reload(); else alert('Ошибка');
+        } catch(e) { alert('Ошибка: '+e.message); }
+    }
+</script>
+{% endblock %}

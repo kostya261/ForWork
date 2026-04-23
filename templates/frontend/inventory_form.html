@@ -28,6 +28,7 @@
         <div class="card-body">
             <form id="inventoryForm">
                 {% csrf_token %}
+                <input type="hidden" id="imageIds" name="image_ids" value="{% if item %}{% for img in item.images.all %}{{ img.id }}{% if not forloop.last %},{% endif %}{% endfor %}{% endif %}">
 
                 <div class="row g-3">
                     <div class="col-md-6">
@@ -100,6 +101,27 @@
                     </div>
                 </div>
 
+                <!-- Блок загрузки изображений -->
+                <div class="mt-4">
+                    <label class="form-label">Изображения</label>
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <button type="button" class="btn btn-outline-primary" onclick="uploadImages()">
+                            <i class="bi bi-cloud-upload me-1"></i>Загрузить изображения
+                        </button>
+                        <span class="text-muted small">Можно выбрать несколько файлов</span>
+                    </div>
+                    <div id="imagePreviews" class="d-flex gap-2 flex-wrap">
+                        {% if item %}
+                            {% for img in item.images.all %}
+                                <div class="position-relative" data-image-id="{{ img.id }}">
+                                    <img src="{{ img.image.url }}" class="rounded" style="width: 100px; height: 100px; object-fit: cover;">
+                                    <button type="button" class="btn-close position-absolute top-0 end-0 bg-danger rounded-circle p-1" style="width: 20px; height: 20px;" onclick="removeImage(this, {{ img.id }})"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+
                 <hr class="my-4">
 
                 <div class="d-flex gap-2">
@@ -117,6 +139,67 @@
     const itemId = {% if item %}{{ item.pk }}{% else %}null{% endif %};
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
+    // Загрузка изображений
+    function uploadImages() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.multiple = true;
+
+        input.onchange = async function() {
+            for (const file of input.files) {
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('title', file.name);
+
+                try {
+                    const response = await fetch('/api/gallery/images/', {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': csrfToken },
+                        body: formData
+                    });
+
+                    const data = await response.json();
+                    console.log('Uploaded image:', data);
+
+                    // Добавляем ID в скрытое поле
+                    const imageIds = document.getElementById('imageIds');
+                    const ids = imageIds.value ? imageIds.value.split(',') : [];
+                    ids.push(data.id);
+                    imageIds.value = ids.join(',');
+
+                    // Добавляем миниатюру
+                    const preview = document.getElementById('imagePreviews');
+                    const div = document.createElement('div');
+                    div.className = 'position-relative';
+                    div.dataset.imageId = data.id;
+                    div.innerHTML = `
+                        <img src="${data.image}" class="rounded" style="width: 100px; height: 100px; object-fit: cover;">
+                        <button type="button" class="btn-close position-absolute top-0 end-0 bg-danger rounded-circle p-1" style="width: 20px; height: 20px;" onclick="removeImage(this, ${data.id})"></button>
+                    `;
+                    preview.appendChild(div);
+
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    alert('Ошибка загрузки изображения');
+                }
+            }
+        };
+
+        input.click();
+    }
+
+    // Удаление изображения
+    function removeImage(btn, imageId) {
+        btn.closest('.position-relative').remove();
+
+        const imageIds = document.getElementById('imageIds');
+        let ids = imageIds.value.split(',').filter(id => id);
+        ids = ids.filter(id => parseInt(id) !== imageId);
+        imageIds.value = ids.join(',');
+    }
+
+    // Отправка формы
     document.getElementById('inventoryForm').addEventListener('submit', async function(e) {
         e.preventDefault();
 
@@ -124,6 +207,8 @@
         const originalText = submitBtn.innerHTML;
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Сохранение...';
+
+        const imageIds = document.getElementById('imageIds').value;
 
         const data = {
             name: document.getElementById('name').value,
@@ -136,6 +221,7 @@
             department_id: document.getElementById('department').value || null,
             purchase_price: document.getElementById('purchase_price').value || null,
             purchase_date: document.getElementById('purchase_date').value || null,
+            image_ids: imageIds ? imageIds.split(',').map(id => parseInt(id)) : []
         };
 
         const url = itemId ? `/api/inventory/${itemId}/` : '/api/inventory/';

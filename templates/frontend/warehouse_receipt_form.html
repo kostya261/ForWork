@@ -1,0 +1,263 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if receipt %}Редактирование{% else %}Новая{% endif %} приходная накладная | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:warehouse_receipt_list' %}">Приходные накладные</a></li>
+                    <li class="breadcrumb-item active">{% if receipt %}Редактирование{% else %}Новая{% endif %}</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">{% if receipt %}Редактирование{% else %}Создание{% endif %} приходной накладной</h2>
+        </div>
+        <a href="{% if receipt %}{% url 'frontend:warehouse_receipt_detail' receipt.pk %}{% else %}{% url 'frontend:warehouse_receipt_list' %}{% endif %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg me-1"></i>Отмена
+        </a>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <form id="receiptForm">
+                {% csrf_token %}
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label">Поставщик <span class="text-danger">*</span></label>
+                        <select name="supplier" id="supplier" class="form-select" required>
+                            <option value="">Выберите поставщика</option>
+                            {% for s in suppliers %}
+                                <option value="{{ s.id }}" {% if receipt.supplier_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Склад <span class="text-danger">*</span></label>
+                        <select name="department" id="department" class="form-select" required>
+                            <option value="">Выберите склад</option>
+                            {% for d in departments %}
+                                <option value="{{ d.id }}" {% if receipt.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Дата поступления</label>
+                        <input type="date" name="receipt_date" id="receipt_date" class="form-control" value="{{ receipt.receipt_date|date:'Y-m-d'|default:'' }}">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Комментарий</label>
+                        <textarea name="comment" id="comment" class="form-control" rows="2">{{ receipt.comment|default:'' }}</textarea>
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Товары</h5>
+
+                <div id="itemsContainer">
+                    <!-- Здесь будут строки товаров -->
+                </div>
+
+                <button type="button" class="btn btn-outline-primary mt-3" onclick="addItemRow()">
+                    <i class="bi bi-plus-lg me-1"></i>Добавить товар
+                </button>
+
+                <hr class="my-4">
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5>Итого: <span id="totalSum">0.00</span> ₽</h5>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-check-lg me-1"></i>{% if receipt %}Сохранить{% else %}Создать{% endif %}
+                        </button>
+                        <a href="{% if receipt %}{% url 'frontend:warehouse_receipt_detail' receipt.pk %}{% else %}{% url 'frontend:warehouse_receipt_list' %}{% endif %}" class="btn btn-outline-secondary">Отмена</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const receiptId = {% if receipt %}{{ receipt.pk }}{% else %}null{% endif %};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    // Список товаров для выпадающего списка
+    const warehouseItems = [
+        {% for item in warehouse_items %}
+        {
+            id: {{ item.id }},
+            name: "{{ item.name|escapejs }}",
+            article: "{{ item.article|default:''|escapejs }}",
+            unit: "{{ item.get_unit_display }}"
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    // Добавить строку товара
+    function addItemRow() {
+        const container = document.getElementById('itemsContainer');
+        const rowId = Date.now();
+
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 align-items-end item-row';
+        row.dataset.rowId = rowId;
+
+        // Выпадающий список товаров
+        let options = '<option value="">Выберите товар</option>';
+        warehouseItems.forEach(function(item) {
+            options += '<option value="' + item.id + '">' + item.name;
+            if (item.article) {
+                options += ' (' + item.article + ')';
+            }
+            options += '</option>';
+        });
+
+        row.innerHTML = `
+            <div class="col-md-5">
+                <select class="form-select item-select" onchange="calculateTotal()" required>
+                    ${options}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="number" step="0.001" class="form-control item-quantity" placeholder="Кол-во" value="1" oninput="calculateTotal()" required>
+            </div>
+            <div class="col-md-2">
+                <input type="number" step="0.01" class="form-control item-price" placeholder="Цена" value="0.00" oninput="calculateTotal()" required>
+            </div>
+            <div class="col-md-2">
+                <span class="form-control-plaintext item-total">0.00 ₽</span>
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.item-row').remove(); calculateTotal();">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+
+        container.appendChild(row);
+        calculateTotal();
+    }
+
+    // Подсчёт общей суммы
+    function calculateTotal() {
+        let total = 0;
+        document.querySelectorAll('.item-row').forEach(function(row) {
+            const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
+            const price = parseFloat(row.querySelector('.item-price').value) || 0;
+            const sum = quantity * price;
+            row.querySelector('.item-total').textContent = sum.toFixed(2) + ' ₽';
+            total += sum;
+        });
+        document.getElementById('totalSum').textContent = total.toFixed(2);
+    }
+
+    // Отправка формы
+    document.getElementById('receiptForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Сохранение...';
+
+        // Собираем товары
+        const items = [];
+        document.querySelectorAll('.item-row').forEach(function(row) {
+            const select = row.querySelector('.item-select');
+            const quantity = row.querySelector('.item-quantity');
+            const price = row.querySelector('.item-price');
+
+            if (select.value && quantity.value && price.value) {
+                items.push({
+                    warehouse_item_id: parseInt(select.value),
+                    quantity: parseFloat(quantity.value),
+                    price: parseFloat(price.value)
+                });
+            }
+        });
+
+        if (items.length === 0) {
+            alert('Добавьте хотя бы один товар');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+            return;
+        }
+
+        const data = {
+            supplier: parseInt(document.getElementById('supplier').value),
+            department: parseInt(document.getElementById('department').value),
+            receipt_date: document.getElementById('receipt_date').value || new Date().toISOString().split('T')[0],
+            comment: document.getElementById('comment').value || '',
+            items: items
+        };
+
+        const url = receiptId ? '/api/documents/receipts/' + receiptId + '/' : '/api/documents/receipts/';
+        const method = receiptId ? 'PATCH' : 'POST';
+
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify(data),
+            });
+
+            const responseText = await response.text();
+            console.log('Response:', responseText);
+
+            if (!response.ok) {
+                throw new Error(responseText);
+            }
+
+            let result;
+            try {
+                result = JSON.parse(responseText);
+            } catch (e) {
+                result = {};
+            }
+
+            console.log('Parsed result:', result);
+
+            const newId = result.id || result.pk;
+
+            if (!newId) {
+                console.error('No ID in response:', result);
+                alert('Накладная создана, но ID не получен. Проверьте список.');
+                window.location.href = '/documents/receipts/';
+                return;
+            }
+
+            window.location.href = '/documents/receipts/' + newId + '/';
+            return;
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Ошибка: ' + error.message);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+
+    // Загружаем существующие товары при редактировании
+    {% if receipt %}
+        {% for item in receipt.items.all %}
+            (function() {
+                addItemRow();
+                const rows = document.querySelectorAll('.item-row');
+                const lastRow = rows[rows.length - 1];
+                lastRow.querySelector('.item-select').value = '{{ item.warehouse_item_id }}';
+                lastRow.querySelector('.item-quantity').value = '{{ item.quantity }}';
+                lastRow.querySelector('.item-price').value = '{{ item.price }}';
+                calculateTotal();
+            })();
+        {% endfor %}
+    {% else %}
+        // Добавляем одну пустую строку для новой накладной
+        addItemRow();
+    {% endif %}
+</script>
+{% endblock %}

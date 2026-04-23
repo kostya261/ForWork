@@ -13,46 +13,57 @@
         </a>
     </div>
     
+       <!-- Статистика -->
     <div class="row g-3 mb-4">
         <div class="col-md-2">
-            <div class="card bg-light">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0">{{ stats.total }}</h5>
-                    <small class="text-muted">Всего</small>
+            <a href="{% url 'frontend:tasks_list' %}" class="text-decoration-none">
+                <div class="card bg-light h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0">{{ stats.total }}</h5>
+                        <small class="text-muted">Всего</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-2">
-            <div class="card bg-primary bg-opacity-10">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0 text-primary">{{ stats.new }}</h5>
-                    <small class="text-primary">Новых</small>
+            <a href="{% url 'frontend:tasks_list' %}?status=new" class="text-decoration-none">
+                <div class="card bg-primary bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-primary">{{ stats.new }}</h5>
+                        <small class="text-primary">Новых</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-2">
-            <div class="card bg-warning bg-opacity-10">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0 text-warning">{{ stats.in_progress }}</h5>
-                    <small class="text-warning">В работе</small>
+            <a href="{% url 'frontend:tasks_list' %}?status=in_progress" class="text-decoration-none">
+                <div class="card bg-warning bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-warning">{{ stats.in_progress }}</h5>
+                        <small class="text-warning">В работе</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-2">
-            <div class="card bg-success bg-opacity-10">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0 text-success">{{ stats.completed }}</h5>
-                    <small class="text-success">Выполнено</small>
+            <a href="{% url 'frontend:tasks_list' %}?status=completed" class="text-decoration-none">
+                <div class="card bg-success bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-success">{{ stats.completed }}</h5>
+                        <small class="text-success">Выполнено</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-2">
-            <div class="card bg-danger bg-opacity-10">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0 text-danger">{{ stats.overdue }}</h5>
-                    <small class="text-danger">Просрочено</small>
+            <a href="{% url 'frontend:tasks_list' %}?my=true&overdue=true" class="text-decoration-none">
+                <div class="card bg-danger bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-danger">{{ stats.overdue }}</h5>
+                        <small class="text-danger">Просрочено</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 

@@ -1,0 +1,23 @@
+<ul class="list-unstyled">
+    <li class="mb-2">
+        <div class="d-flex align-items-center p-2 bg-light rounded">
+            <i class="bi bi-building me-2 text-primary"></i>
+            <a href="{% url 'frontend:department_detail' item.id %}" class="text-decoration-none fw-medium">
+                {{ item.name }}
+            </a>
+            <span class="badge bg-secondary ms-2">{{ item.children|length }} подотделов</span>
+            <span class="ms-auto">
+                <a href="{% url 'frontend:department_edit' item.id %}" class="btn btn-sm btn-outline-primary me-1">
+                    <i class="bi bi-pencil"></i>
+                </a>
+            </span>
+        </div>
+        {% if item.children %}
+            <div class="ms-4 mt-2">
+                {% for child in item.children %}
+                    {% include 'frontend/department_tree_item.html' with item=child %}
+                {% endfor %}
+            </div>
+        {% endif %}
+    </li>
+</ul>

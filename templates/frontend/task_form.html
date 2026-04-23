@@ -95,8 +95,6 @@
 <script>
     // Загрузка справочников
     async function loadSelectOptions() {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-
         try {
             // Загружаем пользователей
             const usersRes = await fetch('/api/users/');
@@ -106,12 +104,22 @@
             const responsibleSelect = document.getElementById('taskResponsible');
             const coExecutorsSelect = document.getElementById('taskCoExecutors');
 
+            // Очищаем и добавляем опцию "Не назначен"
+            responsibleSelect.innerHTML = '<option value="">Не назначен</option>';
+            coExecutorsSelect.innerHTML = '';
+
             users.forEach(user => {
-                const option = document.createElement('option');
-                option.value = user.id;
-                option.textContent = user.full_name || user.username;
-                responsibleSelect.appendChild(option.cloneNode(true));
-                coExecutorsSelect.appendChild(option);
+                // Для responsible
+                const option1 = document.createElement('option');
+                option1.value = user.id;
+                option1.textContent = user.full_name || user.username;
+                responsibleSelect.appendChild(option1);
+
+                // Для co_executors
+                const option2 = document.createElement('option');
+                option2.value = user.id;
+                option2.textContent = user.full_name || user.username;
+                coExecutorsSelect.appendChild(option2);
             });
 
             // Загружаем отделы
@@ -120,6 +128,7 @@
             const departments = deptData.results || deptData;
 
             const deptSelect = document.getElementById('taskDepartment');
+            deptSelect.innerHTML = '<option value="">Не указан</option>';
             departments.forEach(dept => {
                 const option = document.createElement('option');
                 option.value = dept.id;
@@ -133,6 +142,7 @@
             const counterparties = cpData.results || cpData;
 
             const cpSelect = document.getElementById('taskCounterparty');
+            cpSelect.innerHTML = '<option value="">Не указан</option>';
             counterparties.forEach(cp => {
                 const option = document.createElement('option');
                 option.value = cp.id;
@@ -169,6 +179,7 @@
         if (counterparty) data.counterparty_id = parseInt(counterparty);
 
         const responsible = document.getElementById('taskResponsible').value;
+        console.log('Responsible selected:', responsible);
         if (responsible) data.responsible_id = parseInt(responsible);
 
         const coExecutors = Array.from(document.getElementById('taskCoExecutors').selectedOptions).map(opt => parseInt(opt.value));
@@ -196,23 +207,15 @@
             }
 
             const task = await response.json();
-            console.log('=== FULL API RESPONSE ===');
-            console.log(JSON.stringify(task, null, 2));
-            console.log('Task keys:', Object.keys(task));
-            console.log('Task ID variants:', { id: task.id, pk: task.pk, task_id: task.task_id });
-
-            // Пробуем найти ID
-            const taskId = task.id || task.pk || task.task_id || task.data?.id;
+            const taskId = task.id || task.pk;
 
             if (!taskId) {
-                alert('Ошибка: сервер не вернул ID задачи. Проверь консоль (F12).');
-                console.error('Full task object:', task);
+                alert('Ошибка: сервер не вернул ID задачи.');
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
                 return;
             }
 
-            // Перенаправляем
             window.location.href = `/tasks/${taskId}/`;
 
         } catch (error) {

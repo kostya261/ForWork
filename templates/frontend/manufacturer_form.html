@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}{% if manufacturer %}Редактирование{% else %}Новый{% endif %} производитель | ForWork ERP{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-light">{% if manufacturer %}Редактирование{% else %}Новый{% endif %} производитель</h2>
+        <a href="{% url 'frontend:manufacturer_list' %}" class="btn btn-outline-secondary">Отмена</a>
+    </div>
+    <div class="card"><div class="card-body">
+        <form id="manufacturerForm">{% csrf_token %}
+            <input type="hidden" id="manufacturerId" value="{{ manufacturer.pk|default:'' }}">
+            <div class="mb-3"><label class="form-label">Название *</label><input type="text" id="name" class="form-control" value="{{ manufacturer.name|default:'' }}" required></div>
+            <div class="mb-3"><label class="form-label">Страна</label><input type="text" id="country" class="form-control" value="{{ manufacturer.country|default:'' }}"></div>
+            <div class="mb-3"><label class="form-label">Сайт</label><input type="url" id="website" class="form-control" value="{{ manufacturer.website|default:'' }}"></div>
+            <div class="mb-3"><label class="form-label">Описание</label><textarea id="description" class="form-control" rows="3">{{ manufacturer.description|default:'' }}</textarea></div>
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+            <a href="{% url 'frontend:manufacturer_list' %}" class="btn btn-outline-secondary">Отмена</a>
+        </form>
+    </div></div>
+</div>
+<script>
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const id = document.getElementById('manufacturerId').value;
+    document.getElementById('manufacturerForm').addEventListener('submit', async function(e){
+        e.preventDefault();
+        const data = {name: document.getElementById('name').value, country: document.getElementById('country').value, website: document.getElementById('website').value, description: document.getElementById('description').value};
+        const url = id ? `/api/manufacturers/${id}/` : '/api/manufacturers/';
+        const method = id ? 'PATCH' : 'POST';
+        try {
+            const r = await fetch(url, {method, headers:{'Content-Type':'application/json','X-CSRFToken':csrf}, body:JSON.stringify(data)});
+            if(r.ok) window.location.href = '/manufacturers/';
+            else alert('Ошибка сохранения');
+        } catch(e) { alert('Ошибка'); }
+    });
+</script>
+{% endblock %}

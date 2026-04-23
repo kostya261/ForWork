@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}Оборотная ведомость | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-light mb-0">
+            <i class="bi bi-arrow-left-right me-2"></i>Оборотная ведомость
+        </h2>
+    </div>
+    
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Склад</label>
+                    <select name="department" class="form-select">
+                        <option value="">Все склады</option>
+                        {% for d in departments %}
+                            <option value="{{ d.id }}" {% if current_filters.department == d.id|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">С даты</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ current_filters.date_from }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">По дату</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ current_filters.date_to }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <div>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Показать</button>
+                        <a href="{% url 'frontend:warehouse_turnover_report' %}" class="btn btn-outline-secondary">Сбросить</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    <a href="{% url 'frontend:warehouse_turnover_report_pdf' %}?{{ request.GET.urlencode }}" class="btn btn-outline-secondary" target="_blank">
+        <i class="bi bi-file-pdf"></i> PDF
+    </a>
+    <!-- Таблица -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Товар</th>
+                        <th>Артикул</th>
+                        <th>Категория</th>
+                        <th class="text-center">Нач. остаток</th>
+                        <th class="text-center">Приход</th>
+                        <th class="text-center">Расход</th>
+                        <th class="text-center">Кон. остаток</th>
+                        <th>Ед.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in report_data %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.article|default:"—" }}</td>
+                        <td>{{ row.category }}</td>
+                        <td class="text-center">{{ row.start_balance|floatformat:0 }}</td>
+                        <td class="text-center text-success">{{ row.in|floatformat:0 }}</td>
+                        <td class="text-center text-danger">{{ row.out|floatformat:0 }}</td>
+                        <td class="text-center fw-bold">{{ row.end_balance|floatformat:0 }}</td>
+                        <td>{{ row.unit }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="bi bi-table fs-1"></i>
+                            <p class="mt-2">Нет данных за выбранный период</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

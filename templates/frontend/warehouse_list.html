@@ -14,17 +14,19 @@
     </div>
 
     <!-- Статистика -->
-    <div class="row g-3 mb-4">
+        <div class="row g-3 mb-4">
         <div class="col-md-3">
-            <div class="card bg-light">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0">{{ stats.total }}</h5>
-                    <small class="text-muted">Позиций</small>
+            <a href="{% url 'frontend:warehouse_list' %}" class="text-decoration-none">
+                <div class="card bg-light h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0">{{ stats.total }}</h5>
+                        <small class="text-muted">Позиций</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card bg-primary bg-opacity-10">
+            <div class="card bg-primary bg-opacity-10 h-100">
                 <div class="card-body text-center py-2">
                     <h5 class="mb-0 text-primary">{{ stats.total_quantity|floatformat:0 }}</h5>
                     <small class="text-primary">Всего единиц</small>
@@ -32,15 +34,17 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-warning bg-opacity-10">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0 text-warning">{{ stats.low_stock }}</h5>
-                    <small class="text-warning">Мало</small>
+            <a href="{% url 'frontend:warehouse_list' %}?low_stock=true" class="text-decoration-none">
+                <div class="card bg-warning bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-warning">{{ stats.low_stock }}</h5>
+                        <small class="text-warning">Мало</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card bg-info bg-opacity-10">
+            <div class="card bg-info bg-opacity-10 h-100">
                 <div class="card-body text-center py-2">
                     <h5 class="mb-0 text-info">{{ stats.categories }}</h5>
                     <small class="text-info">Категорий</small>
@@ -53,36 +57,55 @@
     <div class="card mb-4">
         <div class="card-body">
             <form method="get" class="row g-3">
+                <!-- Выбор склада -->
                 <div class="col-md-3">
-                    <select name="category" class="form-select">
+                    <label class="form-label">Склад</label>
+                    <select name="department" class="form-select" onchange="this.form.submit()">
+                        {% for d in departments %}
+                            <option value="{{ d.id }}" {% if current_filters.department == d.id|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Категория -->
+                <div class="col-md-3">
+                    <label class="form-label">Категория</label>
+                    <select name="category" class="form-select" onchange="this.form.submit()">
                         <option value="">Все категории</option>
                         {% for cat in categories %}
                             <option value="{{ cat.id }}" {% if current_filters.category == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
+
+                <!-- Производитель -->
                 <div class="col-md-3">
-                    <select name="manufacturer" class="form-select">
+                    <label class="form-label">Производитель</label>
+                    <select name="manufacturer" class="form-select" onchange="this.form.submit()">
                         <option value="">Все производители</option>
                         {% for m in manufacturers %}
                             <option value="{{ m.id }}" {% if current_filters.manufacturer == m.id|stringformat:"s" %}selected{% endif %}>{{ m.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <div class="form-check mt-2">
+
+                <!-- Чекбокс "Мало на складе" -->
+                <div class="col-md-3">
+                    <div class="form-check mt-4">
                         <input type="checkbox" name="low_stock" value="true" class="form-check-input"
-                               {% if current_filters.low_stock == 'true' %}checked{% endif %} id="lowStock">
+                               {% if current_filters.low_stock == 'true' %}checked{% endif %} id="lowStock" onchange="this.form.submit()">
                         <label class="form-check-label" for="lowStock">Мало на складе</label>
                     </div>
                 </div>
-                <div class="col-md-4">
+
+                <!-- Поиск -->
+                <div class="col-md-6">
                     <div class="input-group">
                         <input type="text" name="search" class="form-control" placeholder="Название, артикул..."
                                value="{{ current_filters.search }}">
                         <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
                         {% if current_filters.category or current_filters.manufacturer or current_filters.low_stock or current_filters.search %}
-                            <a href="{% url 'frontend:warehouse_list' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+                            <a href="?department={{ current_filters.department }}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
                         {% endif %}
                     </div>
                 </div>
@@ -155,19 +178,19 @@
     <nav class="mt-4">
         <ul class="pagination justify-content-center">
             {% if items.has_previous %}
-                <li class="page-item"><a class="page-link" href="?page={{ items.previous_page_number }}{% for key,val in current_filters.items %}{% if val %}&{{ key }}={{ val }}{% endif %}{% endfor %}"><i class="bi bi-chevron-left"></i></a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ items.previous_page_number }}{% for key,val in current_filters.items %}{% if val and key != 'page' %}&{{ key }}={{ val }}{% endif %}{% endfor %}"><i class="bi bi-chevron-left"></i></a></li>
             {% endif %}
 
             {% for num in items.paginator.page_range %}
                 {% if num == items.number %}
                     <li class="page-item active"><span class="page-link">{{ num }}</span></li>
                 {% elif num > items.number|add:'-3' and num < items.number|add:'3' %}
-                    <li class="page-item"><a class="page-link" href="?page={{ num }}{% for key,val in current_filters.items %}{% if val %}&{{ key }}={{ val }}{% endif %}{% endfor %}">{{ num }}</a></li>
+                    <li class="page-item"><a class="page-link" href="?page={{ num }}{% for key,val in current_filters.items %}{% if val and key != 'page' %}&{{ key }}={{ val }}{% endif %}{% endfor %}">{{ num }}</a></li>
                 {% endif %}
             {% endfor %}
 
             {% if items.has_next %}
-                <li class="page-item"><a class="page-link" href="?page={{ items.next_page_number }}{% for key,val in current_filters.items %}{% if val %}&{{ key }}={{ val }}{% endif %}{% endfor %}"><i class="bi bi-chevron-right"></i></a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ items.next_page_number }}{% for key,val in current_filters.items %}{% if val and key != 'page' %}&{{ key }}={{ val }}{% endif %}{% endfor %}"><i class="bi bi-chevron-right"></i></a></li>
             {% endif %}
         </ul>
     </nav>

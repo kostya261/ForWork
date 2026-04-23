@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}Остатки по складам | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-light mb-0">
+            <i class="bi bi-table me-2"></i>Остатки по складам
+        </h2>
+    </div>
+    
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Категория</label>
+                    <select name="category" class="form-select" onchange="this.form.submit()">
+                        <option value="">Все категории</option>
+                        {% for cat in categories %}
+                            <option value="{{ cat.id }}" {% if current_filters.category == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Поиск</label>
+                    <div class="input-group">
+                        <input type="text" name="search" class="form-control" placeholder="Название, артикул..." value="{{ current_filters.search }}">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
+                        {% if current_filters.category or current_filters.search %}
+                            <a href="{% url 'frontend:warehouse_stock_report' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    <a href="{% url 'frontend:warehouse_stock_report_pdf' %}?{{ request.GET.urlencode }}" class="btn btn-outline-secondary" target="_blank">
+        <i class="bi bi-file-pdf"></i> PDF
+    </a>
+    <!-- Таблица -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Товар</th>
+                        <th>Артикул</th>
+                        <th>Категория</th>
+                        {% for dept in departments %}
+                            <th class="text-center">{{ dept.name }}</th>
+                        {% endfor %}
+                        <th class="text-center">Всего</th>
+                        <th>Ед.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in report_data %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.article|default:"—" }}</td>
+                        <td>{{ row.category }}</td>
+                        {% for qty in row.quantities %}
+                            <td class="text-center {% if qty == 0 %}text-muted{% endif %}">
+                                {{ qty|floatformat:0 }}
+                            </td>
+                        {% endfor %}
+                        <td class="text-center fw-bold">{{ row.total|floatformat:0 }}</td>
+                        <td>{{ row.unit }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="{{ departments.count|add:5 }}" class="text-center py-5 text-muted">
+                            <i class="bi bi-table fs-1"></i>
+                            <p class="mt-2">Нет данных</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

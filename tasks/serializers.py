@@ -198,13 +198,45 @@ class TaskDetailSerializer(serializers.ModelSerializer):
 class TaskCreateSerializer(serializers.ModelSerializer):
     """Упрощенный сериализатор для создания задачи"""
 
+    responsible_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        source='responsible',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+
+    department_id = serializers.PrimaryKeyRelatedField(
+        queryset=Task._meta.get_field('department').remote_field.model.objects.all(),
+        source='department',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+
+    counterparty_id = serializers.PrimaryKeyRelatedField(
+        queryset=Task._meta.get_field('counterparty').remote_field.model.objects.all(),
+        source='counterparty',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+
+    co_executors_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=User.objects.all(),
+        source='co_executors',
+        write_only=True,
+        required=False
+    )
+
     class Meta:
         model = Task
         fields = [
             'id',
             'name', 'description', 'priority',
-            'responsible', 'co_executors', 'department',
-            'counterparty', 'deadline'
+            'responsible_id', 'co_executors_ids', 'department_id',
+            'counterparty_id', 'deadline'
         ]
         read_only_fields = ['id']
 
@@ -213,10 +245,8 @@ class TaskCreateSerializer(serializers.ModelSerializer):
         validated_data['created_by'] = request.user
         validated_data['status'] = 'new'
 
-        # Создаем задачу
         task = super().create(validated_data)
 
-        # Создаем первую запись в истории статусов
         TaskStatusHistory.objects.create(
             task=task,
             old_status='',

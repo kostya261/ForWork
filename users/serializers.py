@@ -18,18 +18,34 @@ class DepartmentSerializer(serializers.ModelSerializer):
     children = serializers.SerializerMethodField()
     head_name = serializers.CharField(source='head.get_full_name', read_only=True)
 
+    # Поля для записи
+    parent_id = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all(),
+        source='parent',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+    head_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        source='head',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+
     class Meta:
         model = Department
         fields = [
             'id', 'name', 'description',
             'legal_address', 'actual_address',
-            'parent', 'children', 'head', 'head_name',
+            'parent', 'parent_id', 'children',
+            'head', 'head_id', 'head_name',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
 
     def get_children(self, obj):
-        """Рекурсивно получаем дочерние отделы"""
         if obj.children.exists():
             return DepartmentSerializer(obj.children.all(), many=True).data
         return []

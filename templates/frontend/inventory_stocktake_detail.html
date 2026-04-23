@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block title %}Инвентаризация {{ stocktake.number }} | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div><nav aria-label="breadcrumb"><ol class="breadcrumb mb-0"><li class="breadcrumb-item"><a href="{% url 'frontend:inventory_stocktake_list' %}">Инвентаризация ОС</a></li><li class="breadcrumb-item active">{{ stocktake.number }}</li></ol></nav><h2 class="fw-light mt-2">Инвентаризация №{{ stocktake.number }}</h2></div>
+        <div class="d-flex gap-2">{% if stocktake.status == 'draft' %}<button class="btn btn-success" onclick="conductStocktake(); return false;"><i class="bi bi-check-lg"></i> Провести</button><button class="btn btn-outline-danger" onclick="deleteStocktake(); return false;"><i class="bi bi-trash"></i> Удалить</button>{% endif %}</div>
+    </div>
+    
+    <div class="row g-4"><div class="col-12"><div class="card mb-4"><div class="card-header"><i class="bi bi-info-circle me-2"></i>Основная информация</div><div class="card-body"><div class="row mb-3"><div class="col-md-2 text-muted">Отдел</div><div class="col-md-10">{{ stocktake.department.name|default:"—" }}</div></div><div class="row mb-3"><div class="col-md-2 text-muted">Дата</div><div class="col-md-10">{{ stocktake.stocktake_date|date:"d.m.Y" }}</div></div><div class="row mb-3"><div class="col-md-2 text-muted">Статус</div><div class="col-md-10"><span class="badge {% if stocktake.status == 'draft' %}bg-warning{% elif stocktake.status == 'conducted' %}bg-success{% else %}bg-secondary{% endif %} px-3 py-2">{{ stocktake.get_status_display }}</span></div></div><div class="row"><div class="col-md-2 text-muted">Комментарий</div><div class="col-md-10">{{ stocktake.comment|linebreaks|default:"—" }}</div></div></div></div>
+    <div class="card"><div class="card-header"><i class="bi bi-tools me-2"></i>Инвентарь</div><div class="card-body p-0"><table class="table mb-0"><thead class="table-light"><tr><th>Инвентарь</th><th>Инв. номер</th><th>Учётное</th><th>Фактическое</th><th>Разница</th></tr></thead><tbody>{% for item in stocktake.items.all %}<tr><td>{{ item.inventory_item.name }}</td><td>{{ item.inventory_item.inventory_number }}</td><td>{{ item.book_quantity }}</td><td>{{ item.actual_quantity }}</td><td>{% with diff=item.difference %}{% if diff > 0 %}<span class="text-success">+{{ diff }}</span>{% elif diff < 0 %}<span class="text-danger">{{ diff }}</span>{% else %}<span class="text-muted">0</span>{% endif %}{% endwith %}</td></tr>{% empty %}<tr><td colspan="5" class="text-center py-3 text-muted">Нет инвентаря</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+</div>
+
+<script>
+    const stocktakeId = {{ stocktake.pk }}, csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    async function conductStocktake(){if(!confirm('Провести инвентаризацию?'))return;try{const r=await fetch(`/api/documents/inventory-stocktakes/${stocktakeId}/conduct/`,{method:'POST',headers:{'X-CSRFToken':csrfToken}});if(r.ok)location.reload();else alert('Ошибка');}catch(e){alert('Ошибка: '+e.message)}}
+    async function deleteStocktake(){if(!confirm('Удалить инвентаризацию?'))return;try{const r=await fetch(`/api/documents/inventory-stocktakes/${stocktakeId}/`,{method:'DELETE',headers:{'X-CSRFToken':csrfToken}});if(r.ok)window.location.href='/documents/inventory-stocktakes/';else alert('Ошибка');}catch(e){alert('Ошибка: '+e.message)}}
+</script>
+{% endblock %}

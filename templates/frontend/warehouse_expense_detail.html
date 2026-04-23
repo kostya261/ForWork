@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block title %}Накладная {{ expense.number }} | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:warehouse_expense_list' %}">Расходные накладные</a></li>
+                    <li class="breadcrumb-item active">{{ expense.number }}</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">Расходная накладная №{{ expense.number }}</h2>
+        </div>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'frontend:warehouse_expense_pdf' expense.pk %}" class="btn btn-outline-secondary" target="_blank">
+                        <i class="bi bi-file-pdf"></i> PDF
+                </a>
+
+            {% if expense.status == 'draft' %}
+                <button class="btn btn-success" onclick="conductExpense(); return false;">
+                    <i class="bi bi-check-lg"></i> Провести
+                </button>
+                <button class="btn btn-outline-danger" onclick="deleteExpense(); return false;">
+                    <i class="bi bi-trash"></i> Удалить
+                </button>
+            {% endif %}
+            {% if expense.status != 'cancelled' and expense.status != 'conducted' %}
+                <button class="btn btn-outline-warning" onclick="cancelExpense(); return false;">
+                    <i class="bi bi-x-lg"></i> Отменить
+                </button>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header"><i class="bi bi-info-circle me-2"></i>Основная информация</div>
+                <div class="card-body">
+                    <div class="row mb-3"><div class="col-md-3 text-muted">Склад</div><div class="col-md-9">{{ expense.department.name|default:"—" }}</div></div>
+                    <div class="row mb-3"><div class="col-md-3 text-muted">Получатель</div><div class="col-md-9">{{ expense.counterparty.name|default:"—" }}</div></div>
+                    <div class="row mb-3"><div class="col-md-3 text-muted">Задача</div><div class="col-md-9">{% if expense.task %}<a href="{% url 'frontend:task_detail' expense.task.pk %}">#{{ expense.task.pk }} - {{ expense.task.name }}</a>{% else %}—{% endif %}</div></div>
+                    <div class="row mb-3"><div class="col-md-3 text-muted">Дата списания</div><div class="col-md-9">{{ expense.expense_date|date:"d.m.Y" }}</div></div>
+                    <div class="row mb-3"><div class="col-md-3 text-muted">Статус</div><div class="col-md-9"><span class="badge {% if expense.status == 'draft' %}bg-warning{% elif expense.status == 'conducted' %}bg-success{% else %}bg-secondary{% endif %} px-3 py-2">{{ expense.get_status_display }}</span></div></div>
+                    <div class="row"><div class="col-md-3 text-muted">Комментарий</div><div class="col-md-9">{{ expense.comment|linebreaks|default:"—" }}</div></div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header"><i class="bi bi-box-seam me-2"></i>Товары</div>
+                <div class="card-body p-0">
+                    <table class="table mb-0">
+                        <thead class="table-light"><tr><th>Товар</th><th>Артикул</th><th>Кол-во</th><th>Цена</th><th>Сумма</th></tr></thead>
+                        <tbody>
+                            {% for item in expense.items.all %}
+                            <tr><td>{{ item.warehouse_item.name }}</td><td>{{ item.warehouse_item.article|default:"—" }}</td><td>{{ item.quantity }} {{ item.warehouse_item.get_unit_display }}</td><td>{{ item.price }} ₽</td><td>{{ item.total }} ₽</td></tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-center py-3 text-muted">Нет товаров</td></tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light"><tr><th colspan="4" class="text-end">Итого:</th><th>{{ expense.total_sum|floatformat:2 }} ₽</th></tr></tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header"><i class="bi bi-person me-2"></i>Кто участвовал</div>
+                <div class="card-body">
+                    <div class="mb-3"><label class="text-muted d-block mb-2">Создал</label><div class="d-flex align-items-center"><i class="bi bi-person me-2"></i><span>{{ expense.created_by.get_full_name|default:expense.created_by.username }}</span></div><small class="text-muted">{{ expense.created_at|date:"d.m.Y H:i" }}</small></div>
+                    {% if expense.conducted_by %}
+                    <div><label class="text-muted d-block mb-2">Провёл</label><div class="d-flex align-items-center"><i class="bi bi-person-check me-2"></i><span>{{ expense.conducted_by.get_full_name|default:expense.conducted_by.username }}</span></div></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const expenseId = {{ expense.pk }};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    async function conductExpense() {
+        if (!confirm('Провести накладную? Товары будут списаны со склада.')) return;
+        try {
+            const r = await fetch(`/api/documents/expenses/${expenseId}/conduct/`, {method:'POST',headers:{'X-CSRFToken':csrfToken}});
+            if(r.ok) location.reload(); else alert('Ошибка проведения');
+        } catch(e) { alert('Ошибка: '+e.message); }
+    }
+    async function cancelExpense() {
+        if (!confirm('Отменить накладную?')) return;
+        try {
+            const r = await fetch(`/api/documents/expenses/${expenseId}/cancel/`, {method:'POST',headers:{'X-CSRFToken':csrfToken}});
+            if(r.ok) location.reload(); else alert('Ошибка отмены');
+        } catch(e) { alert('Ошибка: '+e.message); }
+    }
+        async function deleteExpense() {
+        if (!confirm('Удалить накладную №{{ expense.number }}? Это действие нельзя отменить.')) return;
+
+        try {
+            const response = await fetch(`/api/documents/expenses/${expenseId}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken },
+            });
+
+            if (response.ok) {
+                window.location.href = '/documents/expenses/';
+            } else {
+                const error = await response.json();
+                alert('Ошибка удаления: ' + (error.detail || ''));
+            }
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+</script>
+{% endblock %}

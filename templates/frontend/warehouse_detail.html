@@ -91,7 +91,15 @@
                                         </span>
                                     </td>
                                     <td>{{ t.quantity }} {{ item.get_unit_display }}</td>
-                                    <td>{{ t.from_department.name|default:t.to_department.name|default:"—" }}</td>
+                                    <td>
+                                        {% if t.from_department %}
+                                            {{ t.from_department.name }}
+                                        {% elif t.to_department %}
+                                            {{ t.to_department.name }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         {% if t.task %}
                                             <a href="{% url 'frontend:task_detail' t.task.pk %}">#{{ t.task.pk }}</a>
@@ -188,6 +196,31 @@
                             <span>{{ item.department.name|default:"Не указан" }}</span>
                         </div>
                     </div>
+
+                    {% if item.cell %}
+                        <div class="mb-3">
+                            <label class="text-muted d-block mb-2">Стеллаж</label>
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-grid-3x3-gap-fill me-2"></i>
+                                <a href="{% url 'frontend:rack_detail' item.cell.rack.pk %}">
+                                    {{ item.cell.rack.name }} (№{{ item.cell.rack.number }})
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="text-muted d-block mb-2">Ячейка</label>
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-grid-3x3 me-2"></i>
+                                <a href="{% url 'frontend:cell_detail' item.cell.pk %}">
+                                    {{ item.cell.name }} (№{{ item.cell.number }})
+                                </a>
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">Место хранения не указано</p>
+                    {% endif %}
+
                     <div>
                         <label class="text-muted d-block mb-2">Дата создания</label>
                         <div class="d-flex align-items-center">

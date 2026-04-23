@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Оборотная ведомость</title>
+    <style>
+        @page { size: A4 landscape; margin: 1cm; }
+        body { font-family: 'DejaVu Sans', Arial, sans-serif; font-size: 10px; }
+        h1 { text-align: center; margin-bottom: 5px; }
+        .subtitle { text-align: center; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background-color: #2c3e50; color: white; padding: 6px; text-align: left; }
+        td { padding: 5px; border-bottom: 1px solid #ddd; }
+        .text-center { text-align: center; }
+        .text-success { color: #198754; }
+        .text-danger { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <h1>ОБОРОТНАЯ ВЕДОМОСТЬ</h1>
+    <div class="subtitle">
+        за период с {{ date_from|date:"d.m.Y" }} по {{ date_to|date:"d.m.Y" }}
+        {% if department %} ({{ department.name }}){% endif %}
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Товар</th>
+                <th>Артикул</th>
+                <th>Категория</th>
+                <th class="text-center">Нач. остаток</th>
+                <th class="text-center">Приход</th>
+                <th class="text-center">Расход</th>
+                <th class="text-center">Кон. остаток</th>
+                <th>Ед.</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in report_data %}
+            <tr>
+                <td>{{ row.name }}</td>
+                <td>{{ row.article|default:"—" }}</td>
+                <td>{{ row.category }}</td>
+                <td class="text-center">{{ row.start_balance|floatformat:0 }}</td>
+                <td class="text-center text-success">{{ row.in|floatformat:0 }}</td>
+                <td class="text-center text-danger">{{ row.out|floatformat:0 }}</td>
+                <td class="text-center"><strong>{{ row.end_balance|floatformat:0 }}</strong></td>
+                <td>{{ row.unit }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

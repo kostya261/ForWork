@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if rack %}Редактирование{% else %}Новый{% endif %} стеллаж | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-light">{% if rack %}Редактирование{% else %}Новый{% endif %} стеллаж</h2>
+        <a href="{% url 'frontend:rack_list' %}" class="btn btn-outline-secondary">Отмена</a>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <form id="rackForm">
+                {% csrf_token %}
+                <input type="hidden" id="rackId" value="{{ rack.pk|default:'' }}">
+                <input type="hidden" id="imageIds" name="image_ids" value="{% if rack %}{% for img in rack.images.all %}{{ img.id }}{% if not forloop.last %},{% endif %}{% endfor %}{% endif %}">
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Отдел <span class="text-danger">*</span></label>
+                        <select id="department" class="form-select" required>
+                            <option value="">Выберите отдел</option>
+                            {% for d in departments %}
+                                <option value="{{ d.id }}" {% if rack.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Название <span class="text-danger">*</span></label>
+                        <input type="text" id="name" class="form-control" value="{{ rack.name|default:'' }}" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Номер <span class="text-danger">*</span></label>
+                        <input type="text" id="number" class="form-control" value="{{ rack.number|default:'' }}" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Описание</label>
+                        <textarea id="description" class="form-control" rows="3">{{ rack.description|default:'' }}</textarea>
+                    </div>
+                </div>
+
+                <!-- Загрузка изображений -->
+                <div class="mt-4">
+                    <label class="form-label">Изображения</label>
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <button type="button" class="btn btn-outline-primary" onclick="uploadImages()">
+                            <i class="bi bi-cloud-upload me-1"></i>Загрузить изображения
+                        </button>
+                        <span class="text-muted small">Можно выбрать несколько файлов</span>
+                    </div>
+                    <div id="imagePreviews" class="d-flex gap-2 flex-wrap">
+                        {% if rack %}
+                            {% for img in rack.images.all %}
+                                <div class="position-relative" data-image-id="{{ img.id }}">
+                                    <img src="{{ img.image.url }}" class="rounded" style="width: 100px; height: 100px; object-fit: cover;">
+                                    <button type="button" class="btn-close position-absolute top-0 end-0 bg-danger rounded-circle p-1" style="width: 20px; height: 20px;" onclick="removeImage(this, {{ img.id }})"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+
+                <hr class="my-4">
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <a href="{% url 'frontend:rack_list' %}" class="btn btn-outline-secondary">Отмена</a>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const id = document.getElementById('rackId').value;
+
+    function uploadImages() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.multiple = true;
+
+        input.onchange = async function() {
+            for (const file of input.files) {
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('title', file.name);
+
+                try {
+                    const response = await fetch('/api/gallery/images/', {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': csrf },
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    const imageIds = document.getElementById('imageIds');
+                    const ids = imageIds.value ? imageIds.value.split(',') : [];
+                    ids.push(data.id);
+                    imageIds.value = ids.join(',');
+
+                    const preview = document.getElementById('imagePreviews');
+                    const div = document.createElement('div');
+                    div.className = 'position-relative';
+                    div.dataset.imageId = data.id;
+                    div.innerHTML = `
+                        <img src="${data.image}" class="rounded" style="width: 100px; height: 100px; object-fit: cover;">
+                        <button type="button" class="btn-close position-absolute top-0 end-0 bg-danger rounded-circle p-1" style="width: 20px; height: 20px;" onclick="removeImage(this, ${data.id})"></button>
+                    `;
+                    preview.appendChild(div);
+
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    alert('Ошибка загрузки изображения');
+                }
+            }
+        };
+
+        input.click();
+    }
+
+    function removeImage(btn, imageId) {
+        btn.closest('.position-relative').remove();
+        const imageIds = document.getElementById('imageIds');
+        let ids = imageIds.value.split(',').filter(id => id);
+        ids = ids.filter(id => parseInt(id) !== imageId);
+        imageIds.value = ids.join(',');
+    }
+
+    document.getElementById('rackForm').addEventListener('submit', async function(e){
+        e.preventDefault();
+
+        const imageIds = document.getElementById('imageIds').value;
+
+        const data = {
+            department_id: parseInt(document.getElementById('department').value),
+            name: document.getElementById('name').value,
+            number: document.getElementById('number').value,
+            description: document.getElementById('description').value,
+            image_ids: imageIds ? imageIds.split(',').map(id => parseInt(id)) : []
+        };
+
+        const url = id ? `/api/racks/${id}/` : '/api/racks/';
+        const method = id ? 'PATCH' : 'POST';
+
+        try {
+            const r = await fetch(url, {method, headers:{'Content-Type':'application/json','X-CSRFToken':csrf}, body:JSON.stringify(data)});
+            if(r.ok) {
+                window.location.href = '/warehouse/racks/';
+            } else {
+                r.json().then(err => {
+                    console.error('Validation errors:', err);
+                    alert('Ошибка: ' + JSON.stringify(err));
+                });
+            }
+        } catch(e) { alert('Ошибка'); }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if department %}Редактирование{% else %}Новый{% endif %} отдел | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:department_list' %}">Отделы</a></li>
+                    {% if department %}
+                        <li class="breadcrumb-item"><a href="{% url 'frontend:department_detail' department.pk %}">{{ department.name }}</a></li>
+                        <li class="breadcrumb-item active">Редактирование</li>
+                    {% else %}
+                        <li class="breadcrumb-item active">Новый</li>
+                    {% endif %}
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">{% if department %}Редактирование{% else %}Создание{% endif %} отдела</h2>
+        </div>
+        <a href="{% if department %}{% url 'frontend:department_detail' department.pk %}{% else %}{% url 'frontend:department_list' %}{% endif %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg me-1"></i>Отмена
+        </a>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <form id="departmentForm">
+                {% csrf_token %}
+                
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Название <span class="text-danger">*</span></label>
+                        <input type="text" name="name" id="name" class="form-control" required value="{{ department.name|default:'' }}">
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <label class="form-label">Родительский отдел</label>
+                        <select name="parent" id="parent" class="form-select">
+                            <option value="">Нет (головной отдел)</option>
+                            {% for p in parents %}
+                                <option value="{{ p.id }}" {% if department.parent_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <label class="form-label">Руководитель</label>
+                        <select name="head" id="head" class="form-select">
+                            <option value="">Не назначен</option>
+                            {% for u in users %}
+                                <option value="{{ u.id }}" {% if department.head_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-12">
+                        <label class="form-label">Описание</label>
+                        <textarea name="description" id="description" class="form-control" rows="3">{{ department.description|default:'' }}</textarea>
+                    </div>
+                    
+                    <div class="col-12">
+                        <label class="form-label">Юридический адрес</label>
+                        <textarea name="legal_address" id="legal_address" class="form-control" rows="2">{{ department.legal_address|default:'' }}</textarea>
+                    </div>
+                    
+                    <div class="col-12">
+                        <label class="form-label">Фактический адрес</label>
+                        <textarea name="actual_address" id="actual_address" class="form-control" rows="2">{{ department.actual_address|default:'' }}</textarea>
+                    </div>
+                </div>
+                
+                <hr class="my-4">
+                
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-check-lg me-1"></i>{% if department %}Сохранить{% else %}Создать{% endif %}
+                    </button>
+                    <a href="{% if department %}{% url 'frontend:department_detail' department.pk %}{% else %}{% url 'frontend:department_list' %}{% endif %}" class="btn btn-outline-secondary">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const deptId = {% if department %}{{ department.pk }}{% else %}null{% endif %};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    document.getElementById('departmentForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Сохранение...';
+        
+        const data = {
+            name: document.getElementById('name').value,
+            description: document.getElementById('description').value,
+            legal_address: document.getElementById('legal_address').value,
+            actual_address: document.getElementById('actual_address').value,
+            parent_id: document.getElementById('parent').value || null,  // ← важно!
+            head_id: document.getElementById('head').value || null,
+        };
+        
+        const url = deptId ? `/api/departments/${deptId}/` : '/api/departments/';
+        const method = deptId ? 'PATCH' : 'POST';
+        
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify(data),
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(JSON.stringify(error));
+            }
+            
+            const result = await response.json();
+            window.location.href = `/departments/${result.id || deptId}/`;
+            
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+</script>
+{% endblock %}

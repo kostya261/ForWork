@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+
+{% block title %}Накладная {{ receipt.number }} | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:warehouse_receipt_list' %}">Приходные накладные</a></li>
+                    <li class="breadcrumb-item active">{{ receipt.number }}</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">Приходная накладная №{{ receipt.number }}</h2>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'frontend:warehouse_receipt_pdf' receipt.pk %}" class="btn btn-outline-secondary" target="_blank">
+                <i class="bi bi-file-pdf"></i> PDF
+            </a>
+            {% if receipt.status == 'draft' %}
+                <a href="{% url 'frontend:warehouse_receipt_edit' receipt.pk %}" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil"></i> Редактировать
+                </a>
+                <button class="btn btn-success" onclick="conductReceipt(); return false;">
+                    <i class="bi bi-check-lg"></i> Провести
+                </button>
+            {% endif %}
+            {% if receipt.status != 'cancelled' %}
+                <button class="btn btn-outline-danger" onclick="cancelReceipt(); return false;">
+                    <i class="bi bi-x-lg"></i> Отменить
+                </button>
+            {% endif %}
+            {% if receipt.status == 'draft' %}
+                <button class="btn btn-outline-danger" onclick="deleteReceipt(); return false;">
+                    <i class="bi bi-trash"></i> Удалить
+                </button>
+            {% endif %}
+
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-info-circle me-2"></i>Основная информация
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Поставщик</div>
+                        <div class="col-md-9">
+                            <a href="{% url 'frontend:counterparty_detail' receipt.supplier.pk %}">{{ receipt.supplier.name }}</a>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Склад</div>
+                        <div class="col-md-9">{{ receipt.department.name|default:"—" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Дата поступления</div>
+                        <div class="col-md-9">{{ receipt.receipt_date|date:"d.m.Y" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Статус</div>
+                        <div class="col-md-9">
+                            <span class="badge {% if receipt.status == 'draft' %}bg-warning{% elif receipt.status == 'conducted' %}bg-success{% else %}bg-secondary{% endif %} px-3 py-2">
+                                {{ receipt.get_status_display }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 text-muted">Комментарий</div>
+                        <div class="col-md-9">{{ receipt.comment|linebreaks|default:"—" }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Таблица товаров -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-box-seam me-2"></i>Товары
+                </div>
+                <div class="card-body p-0">
+                    <table class="table mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Товар</th>
+                                <th>Артикул</th>
+                                <th>Кол-во</th>
+                                <th>Цена</th>
+                                <th>Сумма</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in receipt.items.all %}
+                            <tr>
+                                <td>{{ item.warehouse_item.name }}</td>
+                                <td>{{ item.warehouse_item.article|default:"—" }}</td>
+                                <td>{{ item.quantity }} {{ item.warehouse_item.get_unit_display }}</td>
+                                <td>{{ item.price }} ₽</td>
+                                <td>{{ item.total }} ₽</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-3 text-muted">Нет товаров</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="4" class="text-end">Итого:</th>
+                                <th>{{ receipt.total_sum|floatformat:2 }} ₽</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-person me-2"></i>Кто участвовал
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="text-muted d-block mb-2">Создал</label>
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-person me-2"></i>
+                            <span>{{ receipt.created_by.get_full_name|default:receipt.created_by.username }}</span>
+                        </div>
+                        <small class="text-muted">{{ receipt.created_at|date:"d.m.Y H:i" }}</small>
+                    </div>
+                    {% if receipt.conducted_by %}
+                    <div>
+                        <label class="text-muted d-block mb-2">Провёл</label>
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-person-check me-2"></i>
+                            <span>{{ receipt.conducted_by.get_full_name|default:receipt.conducted_by.username }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const receiptId = {{ receipt.pk }};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    async function conductReceipt() {
+        if (!confirm('Провести накладную? Остатки на складе будут увеличены.')) return;
+        
+        try {
+            const response = await fetch(`/api/documents/receipts/${receiptId}/conduct/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+            });
+            
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Ошибка проведения');
+            }
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+    
+    async function cancelReceipt() {
+        if (!confirm('Отменить накладную?')) return;
+        
+        try {
+            const response = await fetch(`/api/documents/receipts/${receiptId}/cancel/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+            });
+            
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Ошибка отмены');
+            }
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+
+        async function deleteReceipt() {
+        if (!confirm('Удалить накладную №{{ receipt.number }}? Это действие нельзя отменить.')) return;
+
+        try {
+            const response = await fetch(`/api/documents/receipts/${receiptId}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken },
+            });
+
+            if (response.ok) {
+                window.location.href = '/documents/receipts/';
+            } else {
+                alert('Ошибка удаления');
+            }
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+</script>
+{% endblock %}

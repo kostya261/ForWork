@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+
+{% block title %}Наряд {{ order.number }} | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:work_order_list' %}">Наряды</a></li>
+                    <li class="breadcrumb-item active">{{ order.number }}</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">Наряд №{{ order.number }}</h2>
+        </div>
+        <div class="d-flex gap-2">
+            {% if order.status == 'draft' %}
+
+                <a href="{% url 'frontend:work_order_pdf' order.pk %}" class="btn btn-outline-secondary" target="_blank">
+                    <i class="bi bi-file-pdf"></i> PDF
+                </a>
+
+                <a href="{% url 'frontend:work_order_edit' order.pk %}" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil"></i> Редактировать
+                </a>
+                <button class="btn btn-success" onclick="issueOrder()">
+                    <i class="bi bi-check-lg"></i> Выдать
+                </button>
+                <button class="btn btn-outline-danger" onclick="deleteOrder()">
+                    <i class="bi bi-trash"></i> Удалить
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header">Основная информация</div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Задача</div>
+                        <div class="col-md-9">
+                            <a href="{% url 'frontend:task_detail' order.task.pk %}">#{{ order.task.pk }} - {{ order.task.name }}</a>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Ответственный</div>
+                        <div class="col-md-9">{{ order.responsible.get_full_name|default:"Не назначен" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Дата выдачи</div>
+                        <div class="col-md-9">{{ order.issue_date|date:"d.m.Y" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 text-muted">Статус</div>
+                        <div class="col-md-9">
+                            <span class="badge {% if order.status == 'draft' %}bg-warning{% elif order.status == 'issued' %}bg-success{% else %}bg-secondary{% endif %} px-3 py-2">
+                                {{ order.get_status_display }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 text-muted">Комментарий</div>
+                        <div class="col-md-9">{{ order.comment|linebreaks|default:"—" }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">Материалы</div>
+                <div class="card-body p-0">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr><th>Материал</th><th>Количество</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for m in order.materials.all %}
+                            <tr>
+                                <td>{{ m.warehouse_item.name }}</td>
+                                <td>{{ m.planned_quantity }} {{ m.warehouse_item.get_unit_display }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="2" class="text-center py-3 text-muted">Нет материалов</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Инвентарь</div>
+                <div class="card-body p-0">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr><th>Инвентарь</th><th>Количество</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for i in order.inventory.all %}
+                            <tr>
+                                <td>{{ i.inventory_item.name }}</td>
+                                <td>{{ i.quantity }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="2" class="text-center py-3 text-muted">Нет инвентаря</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">Кто участвовал</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="text-muted">Создал</label>
+                        <div>{{ order.created_by.get_full_name|default:order.created_by.username }}</div>
+                        <small class="text-muted">{{ order.created_at|date:"d.m.Y H:i" }}</small>
+                    </div>
+                    {% if order.issued_by %}
+                    <div>
+                        <label class="text-muted">Выдал</label>
+                        <div>{{ order.issued_by.get_full_name }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const orderId = {{ order.pk }};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    async function issueOrder() {
+        if (!confirm('Выдать наряд?')) return;
+        try {
+            const r = await fetch(`/api/documents/work-orders/${orderId}/issue/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            if (r.ok) location.reload();
+            else alert('Ошибка выдачи');
+        } catch(e) {
+            alert('Ошибка: ' + e.message);
+        }
+    }
+
+    async function deleteOrder() {
+        if (!confirm('Удалить наряд?')) return;
+        try {
+            const r = await fetch(`/api/documents/work-orders/${orderId}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            if (r.ok) window.location.href = '/documents/work-orders/';
+            else alert('Ошибка удаления');
+        } catch(e) {
+            alert('Ошибка: ' + e.message);
+        }
+    }
+</script>
+{% endblock %}

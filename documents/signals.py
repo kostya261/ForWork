@@ -1,7 +1,11 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import MaterialRequest, MaterialRequestItem, InventoryIssue, InventoryIssueItem
-from warehouse.models import WarehouseTransaction
+
+from warehouse_locations.models import WarehouseCell, WarehouseRack
+from .models import MaterialRequest, MaterialRequestItem, InventoryIssue, InventoryIssueItem, WarehouseTransfer, \
+    WarehouseStocktake, InventoryWriteOff, InventoryTransfer, InventoryStocktake
+from .models import WarehouseReceipt
+from warehouse.models import WarehouseTransaction, WarehouseItem
 
 
 @receiver(post_save, sender=MaterialRequest)
@@ -28,6 +32,29 @@ def process_material_request_issuance(sender, instance, **kwargs):
                 item.warehouse_item.save()
 
 
+@receiver(post_save, sender=WarehouseReceipt)
+def process_receipt_conduct(sender, instance, **kwargs):
+    """При проведении накладной — увеличиваем остатки на складе"""
+    if instance.status == 'conducted':
+        # Проверяем, не проведена ли уже (чтобы не задвоить)
+        # Можно добавить флаг, но пока проще проверять по транзакциям
+        for item in instance.items.all():
+            # Увеличиваем остаток
+            item.warehouse_item.quantity += item.quantity
+            item.warehouse_item.save()
+
+            # Создаём запись в журнале
+            WarehouseTransaction.objects.get_or_create(
+                item=item.warehouse_item,
+                transaction_type='in',
+                quantity=item.quantity,
+                to_department=instance.department,
+                comment=f'Поступление по накладной №{instance.number}',
+                created_by=instance.conducted_by or instance.created_by,
+                defaults={'created_by': instance.conducted_by or instance.created_by}
+            )
+
+
 @receiver(post_save, sender=InventoryIssue)
 def update_inventory_status_on_issue(sender, instance, **kwargs):
     """
@@ -47,3 +74,180 @@ def update_inventory_status_on_issue(sender, instance, **kwargs):
             inv.status = 'active'
             inv.responsible = None
             inv.save()
+
+
+from .models import WarehouseExpense
+
+
+@receiver(post_save, sender=WarehouseExpense)
+def process_expense_conduct(sender, instance, **kwargs):
+    """При проведении расходной накладной — уменьшаем остатки"""
+    if instance.status == 'conducted':
+        for item in instance.items.all():
+            if item.warehouse_item.quantity >= item.quantity:
+                item.warehouse_item.quantity -= item.quantity
+                item.warehouse_item.save()
+
+                WarehouseTransaction.objects.create(
+                    item=item.warehouse_item,
+                    transaction_type='out',
+                    quantity=item.quantity,
+                    from_department=instance.department,
+                    task=instance.task,
+                    comment=f'Списание по накладной №{instance.number}',
+                    created_by=instance.conducted_by or instance.created_by
+                )
+
+
+@receiver(post_save, sender=WarehouseTransfer)
+def process_transfer_conduct(sender, instance, **kwargs):
+    """Умное перемещение с поиском существующих позиций"""
+    if instance.status == 'conducted':
+        for item in instance.items.all():
+            # Проверяем наличие на складе-отправителе
+            if item.warehouse_item.quantity >= item.quantity:
+                # Уменьшаем остаток на складе-отправителе
+                item.warehouse_item.quantity -= item.quantity
+                item.warehouse_item.save()
+
+                # Создаём транзакцию
+                WarehouseTransaction.objects.create(
+                    item=item.warehouse_item,
+                    transaction_type='move',
+                    quantity=item.quantity,
+                    from_department=instance.from_department,
+                    to_department=instance.to_department,
+                    comment=f'Перемещение по накладной №{instance.number}',
+                    created_by=instance.conducted_by or instance.created_by
+                )
+
+                # 🔥 УМНОЕ ПЕРЕМЕЩЕНИЕ
+                source_item = item.warehouse_item
+
+                # 1. Ищем такой же товар на складе-получателе (по названию и артикулу)
+                existing_items = WarehouseItem.objects.filter(
+                    department=instance.to_department,
+                    name=source_item.name,
+                    article=source_item.article
+                )
+
+                target_item = None
+
+                if existing_items.exists():
+                    # 2. Ищем с такой же ячейкой (по названию)
+                    if source_item.cell:
+                        same_cell_item = existing_items.filter(
+                            cell__name=source_item.cell.name,
+                            cell__rack__name=source_item.cell.rack.name
+                        ).first()
+                        if same_cell_item:
+                            target_item = same_cell_item
+
+                    # 3. Если не нашли с такой же ячейкой — берём первый попавшийся (или в «Общую»)
+                    if not target_item:
+                        # Ищем ячейку «Общая»
+                        default_rack, _ = WarehouseRack.objects.get_or_create(
+                            department=instance.to_department,
+                            name='Основной',
+                            defaults={'number': 'ОСН'}
+                        )
+                        default_cell, _ = WarehouseCell.objects.get_or_create(
+                            rack=default_rack,
+                            name='Общая',
+                            defaults={'number': 'ОБЩ'}
+                        )
+                        target_item = existing_items.filter(cell=default_cell).first()
+                        if not target_item:
+                            target_item = existing_items.first()
+
+                if target_item:
+                    # Плюсуем к существующему
+                    target_item.quantity += item.quantity
+                    target_item.save()
+                else:
+                    # Создаём новый в ячейке «Общая»
+                    default_rack, _ = WarehouseRack.objects.get_or_create(
+                        department=instance.to_department,
+                        name='Основной',
+                        defaults={'number': 'ОСН'}
+                    )
+                    default_cell, _ = WarehouseCell.objects.get_or_create(
+                        rack=default_rack,
+                        name='Общая',
+                        defaults={'number': 'ОБЩ'}
+                    )
+
+                    new_item = WarehouseItem.objects.create(
+                        name=source_item.name,
+                        article=source_item.article,
+                        description=source_item.description,
+                        category=source_item.category,
+                        manufacturer=source_item.manufacturer,
+                        quantity=item.quantity,
+                        unit=source_item.unit,
+                        min_stock=source_item.min_stock,
+                        purchase_price=source_item.purchase_price,
+                        retail_price=source_item.retail_price,
+                        department=instance.to_department,
+                        cell=default_cell
+                    )
+                    new_item.images.set(source_item.images.all())
+
+
+@receiver(post_save, sender=WarehouseStocktake)
+def process_stocktake_conduct(sender, instance, **kwargs):
+    """При проведении инвентаризации — корректируем остатки и создаём транзакции"""
+    if instance.status == 'conducted':
+        for item in instance.items.all():
+            diff = item.actual_quantity - item.book_quantity
+            if diff != 0:
+                # Обновляем остаток
+                item.warehouse_item.quantity = item.actual_quantity
+                item.warehouse_item.save()
+
+                # Создаём транзакцию
+                WarehouseTransaction.objects.create(
+                    item=item.warehouse_item,
+                    transaction_type='in' if diff > 0 else 'out',
+                    quantity=abs(diff),
+                    to_department=instance.department if diff > 0 else None,
+                    from_department=instance.department if diff < 0 else None,
+                    comment=f'Корректировка по инвентаризации №{instance.number}',
+                    created_by=instance.conducted_by or instance.created_by
+                )
+
+
+@receiver(post_save, sender=InventoryWriteOff)
+def process_writeoff_conduct(sender, instance, **kwargs):
+    """При проведении списания — меняем статус инвентаря"""
+    if instance.status == 'conducted':
+        for item in instance.items.all():
+            item.inventory_item.status = 'decommissioned'
+            item.inventory_item.decommission_date = instance.writeoff_date
+            item.inventory_item.decommission_reason = instance.reason
+            item.inventory_item.save()
+
+@receiver(post_save, sender=InventoryTransfer)
+def process_inventory_transfer_conduct(sender, instance, **kwargs):
+    """При проведении перемещения — меняем отдел и ответственного"""
+    if instance.status == 'conducted':
+        for item in instance.items.all():
+            item.inventory_item.department = instance.to_department
+            item.inventory_item.responsible = item.new_responsible
+            item.inventory_item.save()
+
+
+@receiver(post_save, sender=InventoryStocktake)
+def process_inventory_stocktake_conduct(sender, instance, **kwargs):
+    """При проведении инвентаризации — корректируем статусы инвентаря"""
+    if instance.status == 'conducted':
+        for item in instance.items.all():
+            diff = item.actual_quantity - item.book_quantity
+            if diff < 0:
+                # Недостача — помечаем как утерянные
+                item.inventory_item.status = 'lost'
+                item.inventory_item.save()
+            elif diff > 0:
+                # Излишки — можно создать новый инвентарь или просто отметить
+                pass
+

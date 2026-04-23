@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Акт {{ act.number }} | ForWork ERP{% endblock %}
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav><ol class="breadcrumb mb-0"><li class="breadcrumb-item"><a href="{% url 'frontend:completion_act_list' %}">Акты</a></li><li class="breadcrumb-item active">{{ act.number }}</li></ol></nav>
+            <h2 class="fw-light mt-2">Акт №{{ act.number }}</h2>
+        </div>
+        <div class="d-flex gap-2">
+                <a href="{% url 'frontend:completion_act_pdf' act.pk %}" class="btn btn-outline-secondary" target="_blank">
+                    <i class="bi bi-file-pdf"></i> PDF
+                </a>
+            {% if act.status == 'draft' %}
+
+                <a href="{% url 'frontend:completion_act_edit' act.pk %}" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil"></i> Редактировать
+                </a>
+                <button class="btn btn-success" onclick="signAct()">
+                    <i class="bi bi-check-lg"></i> Подписать
+                </button>
+                <button class="btn btn-outline-danger" onclick="deleteAct()">
+                    <i class="bi bi-trash"></i> Удалить
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card mb-4"><div class="card-header">Основная информация</div><div class="card-body">
+                <div class="row mb-3"><div class="col-md-3 text-muted">Задача</div><div class="col-md-9"><a href="{% url 'frontend:task_detail' act.task.pk %}">#{{ act.task.pk }} - {{ act.task.name }}</a></div></div>
+                {% if act.work_order %}<div class="row mb-3"><div class="col-md-3 text-muted">Наряд</div><div class="col-md-9"><a href="{% url 'frontend:work_order_detail' act.work_order.pk %}">{{ act.work_order.number }}</a></div></div>{% endif %}
+                <div class="row mb-3"><div class="col-md-3 text-muted">Дата выполнения</div><div class="col-md-9">{{ act.completion_date|date:"d.m.Y" }}</div></div>
+                <div class="row mb-3"><div class="col-md-3 text-muted">Статус</div><div class="col-md-9"><span class="badge {% if act.status == 'draft' %}bg-warning{% elif act.status == 'signed' %}bg-success{% else %}bg-secondary{% endif %} px-3 py-2">{{ act.get_status_display }}</span></div></div>
+                <div class="row"><div class="col-md-3 text-muted">Комментарий</div><div class="col-md-9">{{ act.comment|linebreaks|default:"—" }}</div></div>
+            </div></div>
+            <div class="card"><div class="card-header">Фактически потраченные материалы</div><div class="card-body p-0"><table class="table mb-0"><thead><tr><th>Материал</th><th>Количество</th></tr></thead><tbody>{% for m in act.materials.all %}<tr><td>{{ m.warehouse_item.name }}</td><td>{{ m.actual_quantity }} {{ m.warehouse_item.get_unit_display }}</td></tr>{% empty %}<tr><td colspan="2" class="text-center py-3 text-muted">Нет материалов</td></tr>{% endfor %}</tbody></table></div></div>
+        </div>
+        <div class="col-lg-4"><div class="card"><div class="card-header">Кто участвовал</div><div class="card-body">
+            <div class="mb-3"><label>Создал</label><div>{{ act.created_by.get_full_name }}</div><small>{{ act.created_at|date:"d.m.Y H:i" }}</small></div>
+            {% if act.signed_by %}<div><label>Подписал</label><div>{{ act.signed_by.get_full_name }}</div></div>{% endif %}
+        </div></div></div>
+    </div>
+</div>
+<script>
+    const actId = {{ act.pk }}, csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    async function signAct(){if(!confirm('Подписать акт?'))return;try{const r=await fetch(`/api/documents/completion-acts/${actId}/sign/`,{method:'POST',headers:{'X-CSRFToken':csrf}});if(r.ok)location.reload();else alert('Ошибка');}catch(e){alert('Ошибка: '+e.message)}}
+    async function deleteAct(){if(!confirm('Удалить акт?'))return;try{const r=await fetch(`/api/documents/completion-acts/${actId}/`,{method:'DELETE',headers:{'X-CSRFToken':csrf}});if(r.ok)window.location.href='/documents/completion-acts/';else alert('Ошибка');}catch(e){alert('Ошибка: '+e.message)}}
+</script>
+{% endblock %}

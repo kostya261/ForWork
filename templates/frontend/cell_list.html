@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block title %}Ячейки | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-light mb-0"><i class="bi bi-grid-3x3 me-2"></i>Ячейки</h2>
+        <a href="{% url 'frontend:cell_create' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Добавить</a>
+    </div>
+    
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Номер</th>
+                        <th>Название</th>
+                        <th>Стеллаж</th>
+                        <th>Отдел</th>
+                        <th>Товаров</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cell in cells %}
+                    <tr>
+                        <td>{{ cell.number }}</td>
+                        <td><a href="{% url 'frontend:cell_detail' cell.pk %}">{{ cell.name }}</a></td>
+                        <td><a href="{% url 'frontend:rack_detail' cell.rack.pk %}">{{ cell.rack.name }}</a></td>
+                        <td>{{ cell.rack.department.name }}</td>
+                        <td>{{ cell.items.count }}</td>
+                        <td><a href="{% url 'frontend:cell_edit' cell.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="text-center py-4 text-muted">Нет ячеек</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
