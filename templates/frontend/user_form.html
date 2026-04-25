@@ -140,6 +140,7 @@
                     </div>
                 </div>
 
+                {% if not is_self %}
                 <h5 class="mb-3">Права доступа</h5>
                 <div class="mb-4">
                     <div class="form-check">
@@ -147,6 +148,7 @@
                         <label class="form-check-label" for="is_staff">Администратор (может управлять системой)</label>
                     </div>
                 </div>
+                {% endif %}
 
                 <hr class="my-4">
                 <button type="submit" class="btn btn-primary">{% if employee %}Сохранить{% else %}Создать{% endif %}</button>

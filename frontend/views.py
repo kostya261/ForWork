@@ -2075,3 +2075,18 @@ def user_edit(request, pk):
         'departments': Department.objects.all(),
     }
     return render(request, 'frontend/user_form.html', context)
+
+
+@login_required
+def profile_edit(request):
+    """Редактирование своего профиля (для всех пользователей)"""
+    from positions.models import Position
+    from departments.models import Department
+
+    context = {
+        'employee': request.user,
+        'positions': Position.objects.all(),
+        'departments': Department.objects.all(),
+        'is_self': True,  # флаг — это редактирование своего профиля
+    }
+    return render(request, 'frontend/user_form.html', context)
