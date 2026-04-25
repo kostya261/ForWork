@@ -188,3 +188,25 @@ class TaskViewSet(viewsets.ModelViewSet):
 
         return Response(stats)
 
+
+    @action(detail=True, methods=['delete'], url_path='remove-material/(?P<requirement_id>[^/.]+)')
+    def remove_material(self, request, pk=None, requirement_id=None):
+        """Удалить требование по материалу"""
+        task = self.get_object()
+        try:
+            req = task.material_requirements.get(id=requirement_id)
+            req.delete()
+            return Response({'status': 'ok'})
+        except TaskMaterialRequirement.DoesNotExist:
+            return Response({'error': 'Требование не найдено'}, status=404)
+
+    @action(detail=True, methods=['delete'], url_path='remove-inventory/(?P<requirement_id>[^/.]+)')
+    def remove_inventory(self, request, pk=None, requirement_id=None):
+        """Удалить требование по инвентарю"""
+        task = self.get_object()
+        try:
+            req = task.inventory_requirements.get(id=requirement_id)
+            req.delete()
+            return Response({'status': 'ok'})
+        except TaskInventoryRequirement.DoesNotExist:
+            return Response({'error': 'Требование не найдено'}, status=404)

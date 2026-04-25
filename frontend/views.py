@@ -270,12 +270,37 @@ def task_create(request):
 
 @login_required
 def inventory_list(request):
-    """Список инвентаря"""
+    """Список инвентаря с выбором склада"""
+    user = request.user
     items = InventoryItem.objects.all().select_related(
         'manufacturer', 'department', 'responsible', 'category'
     )
 
-    # Фильтры
+    # Определяем доступные склады
+    if user.is_staff or user.is_superuser:
+        available_departments = Department.objects.all()
+    else:
+        available_departments = Department.objects.filter(
+            id=user.department_id) if user.department else Department.objects.none()
+
+    # 🔥 Фильтр по складу
+    department_filter = request.GET.get('department', '')
+
+    if department_filter == 'all':
+        # Показываем все склады
+        pass
+    elif department_filter:
+        # Показываем конкретный склад
+        if available_departments.filter(id=department_filter).exists():
+            items = items.filter(department_id=department_filter)
+    else:
+        # По умолчанию — первый доступный склад
+        first_dept = available_departments.first()
+        if first_dept:
+            items = items.filter(department=first_dept)
+            department_filter = str(first_dept.id)
+
+    # Остальные фильтры
     status_filter = request.GET.get('status', '')
     category_filter = request.GET.get('category', '')
     search_query = request.GET.get('search', '')
@@ -322,8 +347,10 @@ def inventory_list(request):
         'items': items_page,
         'stats': stats,
         'categories': categories,
+        'departments': available_departments,  # 🔥 для переключателя
         'status_choices': InventoryItem.STATUS_CHOICES,
         'current_filters': {
+            'department': department_filter,
             'status': status_filter,
             'category': category_filter,
             'my': my_only,
@@ -412,7 +439,10 @@ def warehouse_list(request):
     # Фильтр по отделу (складу)
     department_filter = request.GET.get('department', '')
 
-    if department_filter:
+    if department_filter == 'all':
+        # Показываем все склады — не фильтруем
+        pass
+    elif department_filter:
         # Проверяем, что пользователь имеет доступ к выбранному складу
         if available_departments.filter(id=department_filter).exists():
             items = items.filter(department_id=department_filter)
@@ -2009,3 +2039,39 @@ def warehouse_turnover_report_pdf(request):
     response.write(result)
 
     return response
+
+
+@login_required
+def user_create(request):
+    """Создание пользователя (только для админа)"""
+    if not request.user.is_staff and not request.user.is_superuser:
+        messages.error(request, 'Недостаточно прав')
+        return redirect('frontend:users_list')
+
+    from positions.models import Position
+    from departments.models import Department
+
+    context = {
+        'positions': Position.objects.all(),
+        'departments': Department.objects.all(),
+    }
+    return render(request, 'frontend/user_form.html', context)
+
+
+@login_required
+def user_edit(request, pk):
+    """Редактирование пользователя (только для админа)"""
+    if not request.user.is_staff and not request.user.is_superuser:
+        messages.error(request, 'Недостаточно прав')
+        return redirect('frontend:users_list')
+
+    user = get_object_or_404(User, pk=pk)
+    from positions.models import Position
+    from departments.models import Department
+
+    context = {
+        'employee': user,
+        'positions': Position.objects.all(),
+        'departments': Department.objects.all(),
+    }
+    return render(request, 'frontend/user_form.html', context)

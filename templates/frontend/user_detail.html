@@ -15,8 +15,20 @@
             </nav>
             <h2 class="fw-light mt-2">{{ employee.get_full_name|default:employee.username }}</h2>
         </div>
+        {% if user.is_staff %}
+        <div class="d-flex gap-2">
+            <a href="{% url 'frontend:user_edit' employee.pk %}" class="btn btn-outline-primary">
+                <i class="bi bi-pencil"></i> Редактировать
+            </a>
+            {% if employee.pk != user.pk %}
+                <button class="btn btn-outline-danger" onclick="deleteUser()">
+                    <i class="bi bi-trash"></i> Удалить
+                </button>
+            {% endif %}
+        </div>
+        {% endif %}
     </div>
-    
+
     <div class="row g-4">
         <div class="col-lg-4">
             <!-- Профиль -->
@@ -31,10 +43,10 @@
                             </span>
                         </div>
                     {% endif %}
-                    
+
                     <h4>{{ employee.get_full_name|default:employee.username }}</h4>
                     <p class="text-muted">@{{ employee.username }}</p>
-                    
+
                     <div class="d-flex justify-content-center gap-2 mb-3">
                         {% if employee.is_active %}
                             <span class="badge bg-success">Активен</span>
@@ -45,9 +57,9 @@
                             <span class="badge bg-primary">Администратор</span>
                         {% endif %}
                     </div>
-                    
+
                     <hr>
-                    
+
                     <div class="text-start">
                         <p><i class="bi bi-briefcase me-2"></i>{{ employee.position.name|default:"Должность не указана" }}</p>
                         <p><i class="bi bi-building me-2"></i>{{ employee.department.name|default:"Отдел не указан" }}</p>
@@ -55,6 +67,15 @@
                         <p><i class="bi bi-envelope me-2"></i>{{ employee.email|default:"—" }}</p>
                         <p><i class="bi bi-telegram me-2"></i>{{ employee.telegram|default:"—" }}</p>
                         <p><i class="bi bi-chat-dots me-2"></i>{{ employee.whatsapp|default:"—" }}</p>
+
+                        {% if employee.passport_series or employee.passport_number %}
+                        <hr>
+                        <p class="fw-bold mb-1"><i class="bi bi-person-vcard me-2"></i>Паспортные данные</p>
+                        <p class="small mb-1">Серия: {{ employee.passport_series|default:"—" }}</p>
+                        <p class="small mb-1">Номер: {{ employee.passport_number|default:"—" }}</p>
+                        <p class="small mb-1">Выдан: {{ employee.passport_issued_date|date:"d.m.Y"|default:"—" }}</p>
+                        <p class="small mb-0">{{ employee.passport_issued_by|default:"—" }}</p>
+                        {% endif %}
                     </div>
                     
                     {% if employee.has_transport %}
@@ -167,4 +188,30 @@
     .bg-closed { background-color: #198754 !important; }
     .bg-cancelled { background-color: #dc3545 !important; }
 </style>
+
+<script>
+    const userId = {{ employee.pk }};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    async function deleteUser() {
+        if (!confirm('Удалить сотрудника «{{ employee.get_full_name|default:employee.username|escapejs }}»? Это действие нельзя отменить.')) return;
+
+        try {
+            const response = await fetch(`/api/users/${userId}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+
+            if (response.ok) {
+                window.location.href = '/users/';
+            } else {
+                const error = await response.json();
+                alert('Ошибка удаления: ' + (error.detail || ''));
+            }
+        } catch (e) {
+            alert('Ошибка: ' + e.message);
+        }
+    }
+</script>
+
 {% endblock %}
