@@ -64,6 +64,7 @@ ERP-система для управления задачами, складом,
 
 ### 3. Настроить переменные окружения
 
+```
 Создать файл .env в корне проекта:
 SECRET_KEY=your-secret-key
 DEBUG=True
@@ -72,33 +73,40 @@ DB_USER=postgres
 DB_PASSWORD=your-password
 DB_HOST=localhost
 DB_PORT=5432
+```
 
 ### 4. Создать базу данных PostgreSQL
-
+```
 CREATE DATABASE forwork_db;
+```
 
 ### 5. Применить миграции
-
+```
 python manage.py migrate
+```
 
 ### 6. Создать суперпользователя
 
+```
 python manage.py createsuperuser
+```
 
 ### 7. Запустить сервер
-
+```
 python manage.py runserver
-
+```
 
 Открыть http://127.0.0.1:8000/
 
 Документация API
 После запуска сервера документация доступна по адресам:
-
+```
 Swagger UI: http://127.0.0.1:8000/swagger/
+```
 
+```
 ReDoc: http://127.0.0.1:8000/redoc/
-
+```
 Автор
 Косарев Константин
 Email: kos26193@gmail.com
