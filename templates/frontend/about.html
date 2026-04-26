@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}О программе | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="text-center mb-5">
+        <i class="bi bi-box-seam fs-1" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></i>
+        <h1 class="fw-light mt-3">ForWork ERP</h1>
+        <p class="text-muted">Корпоративная система управления задачами, складом и документами</p>
+        <span class="badge bg-primary">Версия 1.0.0</span>
+    </div>
+    
+    <!-- Статистика системы -->
+    <div class="row g-4 mb-5">
+        <div class="col-md-2 offset-md-1">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="mb-0">{{ stats.tasks_count }}</h3>
+                    <small class="text-muted">Задач</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="mb-0">{{ stats.warehouse_count }}</h3>
+                    <small class="text-muted">Товаров на складе</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="mb-0">{{ stats.inventory_count }}</h3>
+                    <small class="text-muted">Единиц инвентаря</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="mb-0">{{ stats.documents_count }}</h3>
+                    <small class="text-muted">Документов</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="mb-0">{{ stats.users_count }}</h3>
+                    <small class="text-muted">Пользователей</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Возможности -->
+    <h3 class="fw-light mb-4 text-center">Возможности системы</h3>
+    <div class="row g-4 mb-5">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-check2-square fs-1 text-primary mb-3"></i>
+                    <h5>Управление задачами</h5>
+                    <p class="text-muted">Создание, распределение, статусы, приоритеты, комментарии, история изменений</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-box-seam fs-1 text-success mb-3"></i>
+                    <h5>Складской учёт</h5>
+                    <p class="text-muted">Приход, расход, перемещение, инвентаризация, стеллажи и ячейки, отчёты</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-tools fs-1 text-warning mb-3"></i>
+                    <h5>Учёт инвентаря</h5>
+                    <p class="text-muted">Основные средства, ввод в эксплуатацию, списание, перемещение, ответственные</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-file-text fs-1 text-info mb-3"></i>
+                    <h5>Документооборот</h5>
+                    <p class="text-muted">Счета, счета-фактуры, наряды, акты выполненных работ, печатные формы PDF</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-people fs-1 text-danger mb-3"></i>
+                    <h5>Управление персоналом</h5>
+                    <p class="text-muted">Сотрудники, отделы, должности, паспортные данные, транспорт</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-chat-dots fs-1 text-purple mb-3" style="color: #6f42c1;"></i>
+                    <h5>Коммуникации</h5>
+                    <p class="text-muted">Внутренний чат, уведомления о задачах, email-оповещения</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Технологии -->
+    <h3 class="fw-light mb-4 text-center">Технологический стек</h3>
+    <div class="row g-3 mb-5">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <strong>Python 3.13</strong><br>
+                    <small class="text-muted">Django 5.x</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <strong>PostgreSQL</strong><br>
+                    <small class="text-muted">База данных</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <strong>Bootstrap 5</strong><br>
+                    <small class="text-muted">Интерфейс</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <strong>REST API</strong><br>
+                    <small class="text-muted">JWT + Swagger</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Авторы -->
+    <div class="text-center mt-5 pt-4 border-top">
+        <h3 class="fw-light mb-4">Авторы</h3>
+        <div class="row justify-content-center">
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body text-center py-3">
+                        <h6 class="mb-1">Косарев Константин</h6>
+                        <small class="text-muted">Архитектор, Product Owner, тестировщик</small>
+                        <p class="small text-muted mb-2">
+                            kos26193@gmail.com | github.com/kostya261
+                        </p>
+                        <span class="badge bg-primary">Идея, проектирование, тестирование</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body text-center py-3">
+                        <h6 class="mb-1">DeepSeek AI</h6>
+                        <small class="text-muted">Разработчик, код-ассистент</small>
+                        <p class="small text-muted mb-2">
+                            deepseek.com | Языковая модель
+                        </p>
+                        <span class="badge bg-success">Архитектура кода, реализация</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <p class="text-muted mt-3">
+            <small>Разработка: апрель 2026 | Совместное творчество человека и ИИ</small>
+        </p>
+    </div>
+    </div>
+{% endblock %}

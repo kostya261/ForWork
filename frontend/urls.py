@@ -127,6 +127,7 @@ urlpatterns = [
     path('documents/stocktakes/<int:pk>/pdf/', views.warehouse_stocktake_pdf, name='warehouse_stocktake_pdf'),
     path('documents/completion-acts/<int:pk>/pdf/', views.completion_act_pdf, name='completion_act_pdf'),
     path('documents/work-orders/<int:pk>/pdf/', views.work_order_pdf, name='work_order_pdf'),
+    path('documents/pending/', views.pending_documents_list, name='pending_documents'),
     path('warehouse/stock-report/', views.warehouse_stock_report, name='warehouse_stock_report'),
     path('warehouse/turnover-report/', views.warehouse_turnover_report, name='warehouse_turnover_report'),
     path('warehouse/stock-report/pdf/', views.warehouse_stock_report_pdf, name='warehouse_stock_report_pdf'),
@@ -151,5 +152,5 @@ urlpatterns = [
     # Остальные
 
     path('documents/', views.material_requests_list, name='documents_list'),
-
+    path('about/', views.about, name='about'),
 ]

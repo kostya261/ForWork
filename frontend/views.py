@@ -687,6 +687,8 @@ def user_list(request):
     position_filter = request.GET.get('position', '')
     search_query = request.GET.get('search', '')
     active_only = request.GET.get('active', '')
+    staff_only = request.GET.get('staff', '')
+    transport_only = request.GET.get('transport', '')
 
     if department_filter:
         users = users.filter(department_id=department_filter)
@@ -703,6 +705,11 @@ def user_list(request):
             Q(email__icontains=search_query) |
             Q(phone__icontains=search_query)
         )
+    if staff_only == 'true':
+        users = users.filter(is_staff=True)
+    if transport_only == 'true':
+        users = users.filter(has_transport=True)
+
 
     # Статистика
     stats = {
@@ -2090,3 +2097,119 @@ def profile_edit(request):
         'is_self': True,  # флаг — это редактирование своего профиля
     }
     return render(request, 'frontend/user_form.html', context)
+
+
+@login_required
+def about(request):
+    """Страница 'О программе'"""
+    from django.db.models import Count
+
+    # Немного статистики для красоты
+    stats = {
+        'tasks_count': Task.objects.count(),
+        'warehouse_count': WarehouseItem.objects.count(),
+        'inventory_count': InventoryItem.objects.count(),
+        'users_count': User.objects.count(),
+        'documents_count': (
+                WarehouseReceipt.objects.count() +
+                WarehouseExpense.objects.count() +
+                Invoice.objects.count()
+        ),
+    }
+
+    return render(request, 'frontend/about.html', {'stats': stats})
+
+
+@login_required
+def pending_documents_list(request):
+    """Список всех документов, ожидающих обработки"""
+
+    # Собираем все черновики из разных моделей
+    pending_items = []
+
+    # Приходные накладные
+    for doc in WarehouseReceipt.objects.filter(status='draft').select_related('supplier').order_by('-created_at')[:10]:
+        pending_items.append({
+            'type': 'Приходная накладная',
+            'number': doc.number,
+            'date': doc.created_at,
+            'status': 'Черновик',
+            'link': f'/documents/receipts/{doc.pk}/',
+            'icon': '📥',
+        })
+
+    # Расходные накладные
+    for doc in WarehouseExpense.objects.filter(status='draft').select_related('counterparty').order_by('-created_at')[
+               :10]:
+        pending_items.append({
+            'type': 'Расходная накладная',
+            'number': doc.number,
+            'date': doc.created_at,
+            'status': 'Черновик',
+            'link': f'/documents/expenses/{doc.pk}/',
+            'icon': '📤',
+        })
+
+    # Перемещения
+    for doc in WarehouseTransfer.objects.filter(status='draft').order_by('-created_at')[:10]:
+        pending_items.append({
+            'type': 'Перемещение',
+            'number': doc.number,
+            'date': doc.created_at,
+            'status': 'Черновик',
+            'link': f'/documents/transfers/{doc.pk}/',
+            'icon': '🔄',
+        })
+
+    # Инвентаризации
+    for doc in WarehouseStocktake.objects.filter(status='draft').order_by('-created_at')[:10]:
+        pending_items.append({
+            'type': 'Инвентаризация',
+            'number': doc.number,
+            'date': doc.created_at,
+            'status': 'Черновик',
+            'link': f'/documents/stocktakes/{doc.pk}/',
+            'icon': '📋',
+        })
+
+    # Счета
+    for doc in Invoice.objects.filter(status='draft').select_related('counterparty').order_by('-created_at')[:10]:
+        pending_items.append({
+            'type': 'Счёт',
+            'number': doc.number,
+            'date': doc.created_at,
+            'status': 'Черновик',
+            'link': f'/documents/invoices/{doc.pk}/',
+            'icon': '🧾',
+        })
+
+    # Наряды
+    for doc in WorkOrder.objects.filter(status='draft').select_related('task').order_by('-created_at')[:10]:
+        pending_items.append({
+            'type': 'Наряд',
+            'number': doc.number,
+            'date': doc.created_at,
+            'status': 'Черновик',
+            'link': f'/documents/work-orders/{doc.pk}/',
+            'icon': '📄',
+        })
+
+    # Акты
+    for doc in CompletionAct.objects.filter(status='draft').select_related('task').order_by('-created_at')[:10]:
+        pending_items.append({
+            'type': 'Акт',
+            'number': doc.number,
+            'date': doc.created_at,
+            'status': 'Черновик',
+            'link': f'/documents/completion-acts/{doc.pk}/',
+            'icon': '✅',
+        })
+
+    # Сортируем по дате
+    pending_items.sort(key=lambda x: x['date'], reverse=True)
+    pending_items = pending_items[:50]
+
+    return render(request, 'frontend/pending_documents.html', {
+        'pending_items': pending_items,
+        'total': len(pending_items)
+    })

@@ -14,36 +14,44 @@
     <!-- Статистика -->
     <div class="row g-3 mb-4">
         <div class="col-md-3">
-            <div class="card bg-light">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0">{{ stats.total }}</h5>
-                    <small class="text-muted">Всего</small>
+            <a href="{% url 'frontend:users_list' %}" class="text-decoration-none">
+                <div class="card bg-light h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0">{{ stats.total }}</h5>
+                        <small class="text-muted">Всего</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card bg-success bg-opacity-10">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0 text-success">{{ stats.active }}</h5>
-                    <small class="text-success">Активных</small>
+            <a href="{% url 'frontend:users_list' %}?active=true" class="text-decoration-none">
+                <div class="card bg-success bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-success">{{ stats.active }}</h5>
+                        <small class="text-success">Активных</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card bg-primary bg-opacity-10">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0 text-primary">{{ stats.staff }}</h5>
-                    <small class="text-primary">Администраторов</small>
+            <a href="{% url 'frontend:users_list' %}?active=true&staff=true" class="text-decoration-none">
+                <div class="card bg-primary bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-primary">{{ stats.staff }}</h5>
+                        <small class="text-primary">Администраторов</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="card bg-warning bg-opacity-10">
-                <div class="card-body text-center py-2">
-                    <h5 class="mb-0 text-warning">{{ stats.with_transport }}</h5>
-                    <small class="text-warning">С транспортом</small>
+            <a href="{% url 'frontend:users_list' %}?transport=true" class="text-decoration-none">
+                <div class="card bg-warning bg-opacity-10 h-100">
+                    <div class="card-body text-center py-2">
+                        <h5 class="mb-0 text-warning">{{ stats.with_transport }}</h5>
+                        <small class="text-warning">С транспортом</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
     
