@@ -29,12 +29,12 @@
             <form id="departmentForm">
                 {% csrf_token %}
                 
-                <div class="row g-3">
+                <h5 class="mb-3">Основная информация</h5>
+                <div class="row g-3 mb-4">
                     <div class="col-md-6">
                         <label class="form-label">Название <span class="text-danger">*</span></label>
                         <input type="text" name="name" id="name" class="form-control" required value="{{ department.name|default:'' }}">
                     </div>
-                    
                     <div class="col-md-6">
                         <label class="form-label">Родительский отдел</label>
                         <select name="parent" id="parent" class="form-select">
@@ -44,7 +44,6 @@
                             {% endfor %}
                         </select>
                     </div>
-                    
                     <div class="col-md-6">
                         <label class="form-label">Руководитель</label>
                         <select name="head" id="head" class="form-select">
@@ -54,25 +53,62 @@
                             {% endfor %}
                         </select>
                     </div>
-                    
                     <div class="col-12">
                         <label class="form-label">Описание</label>
                         <textarea name="description" id="description" class="form-control" rows="3">{{ department.description|default:'' }}</textarea>
                     </div>
-                    
+                </div>
+
+                <h5 class="mb-3">Адреса</h5>
+                <div class="row g-3 mb-4">
                     <div class="col-12">
                         <label class="form-label">Юридический адрес</label>
                         <textarea name="legal_address" id="legal_address" class="form-control" rows="2">{{ department.legal_address|default:'' }}</textarea>
                     </div>
-                    
                     <div class="col-12">
                         <label class="form-label">Фактический адрес</label>
                         <textarea name="actual_address" id="actual_address" class="form-control" rows="2">{{ department.actual_address|default:'' }}</textarea>
                     </div>
                 </div>
-                
+
+                <h5 class="mb-3">Реквизиты</h5>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label">ИНН</label>
+                        <input type="text" id="inn" class="form-control" value="{{ department.inn|default:'' }}" maxlength="12">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">КПП</label>
+                        <input type="text" id="kpp" class="form-control" value="{{ department.kpp|default:'' }}" maxlength="9">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">ОГРН</label>
+                        <input type="text" id="ogrn" class="form-control" value="{{ department.ogrn|default:'' }}" maxlength="15">
+                    </div>
+                </div>
+
+                <!-- 🔥 Банковские реквизиты -->
+                <h5 class="mb-3">Банковские реквизиты</h5>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">Банк</label>
+                        <select id="bank" class="form-select">
+                            <option value="">Не выбран</option>
+                            {% for b in banks %}
+                                <option value="{{ b.id }}" {% if department.bank_id == b.id %}selected{% endif %}>
+                                    {{ b.name }} (БИК: {{ b.bik }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Расчётный счёт</label>
+                        <input type="text" id="bank_account" class="form-control" value="{{ department.bank_account|default:'' }}" maxlength="20">
+                    </div>
+                </div>
+
                 <hr class="my-4">
-                
+
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-primary px-4">
                         <i class="bi bi-check-lg me-1"></i>{% if department %}Сохранить{% else %}Создать{% endif %}
@@ -87,34 +123,44 @@
 <script>
     const deptId = {% if department %}{{ department.pk }}{% else %}null{% endif %};
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    
+
     document.getElementById('departmentForm').addEventListener('submit', async function(e) {
         e.preventDefault();
-        
+
         const submitBtn = this.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerHTML;
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Сохранение...';
-        
+
+        const parentValue = document.getElementById('parent').value;
+        const headValue = document.getElementById('head').value;
+        const bankValue = document.getElementById('bank').value;
+
         const data = {
             name: document.getElementById('name').value,
             description: document.getElementById('description').value,
             legal_address: document.getElementById('legal_address').value,
             actual_address: document.getElementById('actual_address').value,
-            parent_id: document.getElementById('parent').value || null,  // ← важно!
-            head_id: document.getElementById('head').value || null,
+            inn: document.getElementById('inn').value,
+            kpp: document.getElementById('kpp').value,
+            ogrn: document.getElementById('ogrn').value,
+            bank_account: document.getElementById('bank_account').value,
         };
-        
+
+        if (parentValue) data.parent_id = parseInt(parentValue);
+        if (headValue) data.head_id = parseInt(headValue);
+        if (bankValue) data.bank_id = parseInt(bankValue);
+        else data.bank_id = null;
+
+
+        console.log('Sending data:', JSON.stringify(data, null, 2));
         const url = deptId ? `/api/departments/${deptId}/` : '/api/departments/';
         const method = deptId ? 'PATCH' : 'POST';
-        
+
         try {
             const response = await fetch(url, {
                 method: method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken,
-                },
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
                 body: JSON.stringify(data),
             });
             

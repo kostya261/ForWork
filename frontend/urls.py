@@ -145,6 +145,12 @@ urlpatterns = [
     path('warehouse/cells/<int:pk>/', views.cell_detail, name='cell_detail'),
     path('warehouse/cells/<int:pk>/edit/', views.cell_edit, name='cell_edit'),
 
+
+    # Банки
+    path('banks/', views.bank_list, name='bank_list'),
+    path('banks/create/', views.bank_create, name='bank_create'),
+    path('banks/<int:pk>/edit/', views.bank_edit, name='bank_edit'),
+
     # Чат
     path('chat/', views.chat_index, name='chat_index'),
 

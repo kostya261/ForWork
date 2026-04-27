@@ -658,8 +658,10 @@ def counterparty_detail(request, pk):
 @login_required
 def counterparty_create(request):
     """Создание контрагента"""
+    banks = Bank.objects.all()
     context = {
         'type_choices': Counterparty.TYPE_CHOICES,
+        'banks': banks,
     }
     return render(request, 'frontend/counterparty_form.html', context)
 
@@ -668,12 +670,12 @@ def counterparty_create(request):
 def counterparty_edit(request, pk):
     """Редактирование контрагента"""
     counterparty = get_object_or_404(Counterparty, pk=pk)
-
+    banks = Bank.objects.all()
     context = {
         'counterparty': counterparty,
         'type_choices': Counterparty.TYPE_CHOICES,
+        'banks': banks,
     }
-
     return render(request, 'frontend/counterparty_form.html', context)
 
 
@@ -826,16 +828,18 @@ def department_detail(request, pk):
 def department_create(request):
     parents = Department.objects.all()
     users = User.objects.filter(is_active=True)
-    context = {'parents': parents, 'users': users}
+    banks = Bank.objects.all()  # 🔥 добавили
+    context = {'parents': parents, 'users': users, 'banks': banks}
     return render(request, 'frontend/department_form.html', context)
 
 
 @login_required
 def department_edit(request, pk):
     department = get_object_or_404(Department, pk=pk)
-    parents = Department.objects.exclude(pk=pk)  # исключаем сам себя
+    parents = Department.objects.exclude(pk=pk)
     users = User.objects.filter(is_active=True)
-    context = {'department': department, 'parents': parents, 'users': users}
+    banks = Bank.objects.all()  # 🔥 добавили
+    context = {'department': department, 'parents': parents, 'users': users, 'banks': banks}
     return render(request, 'frontend/department_form.html', context)
 
 
@@ -2213,3 +2217,23 @@ def pending_documents_list(request):
         'pending_items': pending_items,
         'total': len(pending_items)
     })
+
+
+from banks.models import Bank
+
+@login_required
+def bank_list(request):
+    """Список банков"""
+    banks = Bank.objects.all()
+    return render(request, 'frontend/bank_list.html', {'banks': banks})
+
+@login_required
+def bank_create(request):
+    """Создание банка"""
+    return render(request, 'frontend/bank_form.html')
+
+@login_required
+def bank_edit(request, pk):
+    """Редактирование банка"""
+    bank = get_object_or_404(Bank, pk=pk)
+    return render(request, 'frontend/bank_form.html', {'bank': bank})
