@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+
+from banks.models import Bank
 from .models import User
 from positions.models import Position
 from departments.models import Department
@@ -19,26 +21,18 @@ class DepartmentSerializer(serializers.ModelSerializer):
     head_name = serializers.CharField(source='head.get_full_name', read_only=True)
 
     # Поля для записи
-    parent_id = serializers.PrimaryKeyRelatedField(
-        queryset=Department.objects.all(),
-        source='parent',
-        write_only=True,
-        required=False,
-        allow_null=True
-    )
-    head_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(),
-        source='head',
-        write_only=True,
-        required=False,
-        allow_null=True
-    )
+    parent_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
+    head_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
+    bank_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
+    bank_name = serializers.CharField(source='bank.name', read_only=True)
 
     class Meta:
         model = Department
         fields = [
             'id', 'name', 'description',
             'legal_address', 'actual_address',
+            'inn', 'kpp', 'ogrn',
+            'bank', 'bank_id', 'bank_name', 'bank_account',
             'parent', 'parent_id', 'children',
             'head', 'head_id', 'head_name',
             'created_at', 'updated_at'
@@ -49,6 +43,55 @@ class DepartmentSerializer(serializers.ModelSerializer):
         if obj.children.exists():
             return DepartmentSerializer(obj.children.all(), many=True).data
         return []
+
+    # 🔥 Обработка при обновлении
+    def update(self, instance, validated_data):
+        bank_id = validated_data.pop('bank_id', None)
+        parent_id = validated_data.pop('parent_id', None)
+        head_id = validated_data.pop('head_id', None)
+
+        # Обновляем обычные поля
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        # Обновляем родителя
+        if parent_id is not None:
+            if parent_id:
+                instance.parent = Department.objects.get(id=parent_id)
+            else:
+                instance.parent = None
+
+        # Обновляем руководителя
+        if head_id is not None:
+            if head_id:
+                instance.head = User.objects.get(id=head_id)
+            else:
+                instance.head = None
+
+        # Обновляем банк
+        if bank_id is not None:
+            if bank_id:
+                instance.bank = Bank.objects.get(id=bank_id)
+            else:
+                instance.bank = None
+
+        instance.save()
+        return instance
+
+    # 🔥 Обработка при создании
+    def create(self, validated_data):
+        bank_id = validated_data.pop('bank_id', None)
+        parent_id = validated_data.pop('parent_id', None)
+        head_id = validated_data.pop('head_id', None)
+
+        if parent_id:
+            validated_data['parent'] = Department.objects.get(id=parent_id)
+        if head_id:
+            validated_data['head'] = User.objects.get(id=head_id)
+        if bank_id:
+            validated_data['bank'] = Bank.objects.get(id=bank_id)
+
+        return Department.objects.create(**validated_data)
 
 
 class UserListSerializer(serializers.ModelSerializer):

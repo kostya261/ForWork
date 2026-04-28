@@ -1,8 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
-from counterparties.models import Counterparty
-from departments.models import Department
 from inventory.models import InventoryItem
 from warehouse.models import WarehouseItem
 from .models import (
@@ -804,6 +802,31 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
 
         return invoice
 
+    def update(self, instance, validated_data):
+        items_data = validated_data.pop('items', None)
+
+        # Обновляем основные поля
+        instance.counterparty = validated_data.get('counterparty', instance.counterparty)
+        instance.task = validated_data.get('task', instance.task)
+        instance.invoice_date = validated_data.get('invoice_date', instance.invoice_date)
+        instance.due_date = validated_data.get('due_date', instance.due_date)
+        instance.comment = validated_data.get('comment', instance.comment)
+        instance.save()
+
+        # Если переданы новые позиции — удаляем старые и создаём новые
+        if items_data is not None:
+            instance.items.all().delete()
+            for item_data in items_data:
+                InvoiceItem.objects.create(
+                    invoice=instance,
+                    warehouse_item_id=item_data.get('warehouse_item'),
+                    description=item_data.get('description', ''),
+                    quantity=item_data['quantity'],
+                    unit=item_data.get('unit', 'шт'),
+                    price=item_data['price']
+                )
+
+        return instance
 
 class InvoiceFacturaItemSerializer(serializers.ModelSerializer):
     total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)

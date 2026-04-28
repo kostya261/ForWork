@@ -57,12 +57,23 @@
         </div>
     </div>
 
-    <!-- Фильтры -->
+        <!-- Выбор склада -->
     <div class="card mb-4">
         <div class="card-body">
             <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Склад</label>
+                    <select name="department" class="form-select" onchange="this.form.submit()">
+                        <option value="all" {% if current_filters.department == 'all' %}selected{% endif %}>Все склады</option>
+                        {% for d in departments %}
+                            <option value="{{ d.id }}" {% if current_filters.department == d.id|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <!-- Остальные фильтры перенеси в эту же форму -->
                 <div class="col-md-3">
-                    <select name="status" class="form-select">
+                    <label class="form-label">Статус</label>
+                    <select name="status" class="form-select" onchange="this.form.submit()">
                         <option value="">Все статусы</option>
                         {% for value, label in status_choices %}
                             <option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>{{ label }}</option>
@@ -70,7 +81,8 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <select name="category" class="form-select">
+                    <label class="form-label">Категория</label>
+                    <select name="category" class="form-select" onchange="this.form.submit()">
                         <option value="">Все категории</option>
                         {% for cat in categories %}
                             <option value="{{ cat.id }}" {% if current_filters.category == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
@@ -78,19 +90,18 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <div class="form-check mt-2">
+                    <div class="form-check mt-4">
                         <input type="checkbox" name="my" value="true" class="form-check-input"
-                               {% if current_filters.my == 'true' %}checked{% endif %} id="myItems">
+                               {% if current_filters.my == 'true' %}checked{% endif %} id="myItems" onchange="this.form.submit()">
                         <label class="form-check-label" for="myItems">Закреплён за мной</label>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-4 mt-2">
                     <div class="input-group">
-                        <input type="text" name="search" class="form-control" placeholder="Название, инв. номер..."
-                               value="{{ current_filters.search }}">
+                        <input type="text" name="search" class="form-control" placeholder="Название, инв. номер..." value="{{ current_filters.search }}">
                         <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
                         {% if current_filters.status or current_filters.category or current_filters.my or current_filters.search %}
-                            <a href="{% url 'frontend:inventory_list' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+                            <a href="?department={{ current_filters.department }}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
                         {% endif %}
                     </div>
                 </div>

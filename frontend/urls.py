@@ -33,6 +33,10 @@ urlpatterns = [
     # Сотрудники
     path('users/', views.user_list, name='users_list'),
     path('users/<int:pk>/', views.user_detail, name='user_detail'),
+    path('users/create/', views.user_create, name='user_create'),
+    path('users/<int:pk>/edit/', views.user_edit, name='user_edit'),
+
+    path('profile/', views.profile_edit, name='profile_edit'),
 
     # Отделы
     path('departments/', views.department_list, name='department_list'),
@@ -123,6 +127,7 @@ urlpatterns = [
     path('documents/stocktakes/<int:pk>/pdf/', views.warehouse_stocktake_pdf, name='warehouse_stocktake_pdf'),
     path('documents/completion-acts/<int:pk>/pdf/', views.completion_act_pdf, name='completion_act_pdf'),
     path('documents/work-orders/<int:pk>/pdf/', views.work_order_pdf, name='work_order_pdf'),
+    path('documents/pending/', views.pending_documents_list, name='pending_documents'),
     path('warehouse/stock-report/', views.warehouse_stock_report, name='warehouse_stock_report'),
     path('warehouse/turnover-report/', views.warehouse_turnover_report, name='warehouse_turnover_report'),
     path('warehouse/stock-report/pdf/', views.warehouse_stock_report_pdf, name='warehouse_stock_report_pdf'),
@@ -140,6 +145,12 @@ urlpatterns = [
     path('warehouse/cells/<int:pk>/', views.cell_detail, name='cell_detail'),
     path('warehouse/cells/<int:pk>/edit/', views.cell_edit, name='cell_edit'),
 
+
+    # Банки
+    path('banks/', views.bank_list, name='bank_list'),
+    path('banks/create/', views.bank_create, name='bank_create'),
+    path('banks/<int:pk>/edit/', views.bank_edit, name='bank_edit'),
+
     # Чат
     path('chat/', views.chat_index, name='chat_index'),
 
@@ -147,5 +158,5 @@ urlpatterns = [
     # Остальные
 
     path('documents/', views.material_requests_list, name='documents_list'),
-
+    path('about/', views.about, name='about'),
 ]

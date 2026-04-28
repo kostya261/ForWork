@@ -571,7 +571,9 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_serializer_class(self):
-        return InvoiceCreateSerializer if self.action == 'create' else InvoiceSerializer
+        if self.action in ['create', 'update', 'partial_update']:
+            return InvoiceCreateSerializer
+        return InvoiceSerializer
 
     @action(detail=True, methods=['post'])
     def send(self, request, pk=None):

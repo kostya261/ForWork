@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if bank %}Редактирование{% else %}Новый{% endif %} банк | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-light">{% if bank %}Редактирование{% else %}Новый{% endif %} банк</h2>
+        <a href="{% url 'frontend:bank_list' %}" class="btn btn-outline-secondary">Отмена</a>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <form id="bankForm">
+                {% csrf_token %}
+                <input type="hidden" id="bankId" value="{{ bank.pk|default:'' }}">
+                
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Название <span class="text-danger">*</span></label>
+                        <input type="text" id="name" class="form-control" value="{{ bank.name|default:'' }}" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">БИК <span class="text-danger">*</span></label>
+                        <input type="text" id="bik" class="form-control" value="{{ bank.bik|default:'' }}" required maxlength="9">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Корр. счёт <span class="text-danger">*</span></label>
+                        <input type="text" id="correspondent_account" class="form-control" value="{{ bank.correspondent_account|default:'' }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">SWIFT</label>
+                        <input type="text" id="swift" class="form-control" value="{{ bank.swift|default:'' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">ИНН</label>
+                        <input type="text" id="inn" class="form-control" value="{{ bank.inn|default:'' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">КПП</label>
+                        <input type="text" id="kpp" class="form-control" value="{{ bank.kpp|default:'' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Телефон</label>
+                        <input type="text" id="phone" class="form-control" value="{{ bank.phone|default:'' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Email</label>
+                        <input type="email" id="email" class="form-control" value="{{ bank.email|default:'' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Сайт</label>
+                        <input type="url" id="website" class="form-control" value="{{ bank.website|default:'' }}">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Юридический адрес</label>
+                        <textarea id="legal_address" class="form-control" rows="2">{{ bank.legal_address|default:'' }}</textarea>
+                    </div>
+                </div>
+                
+                <hr class="my-4">
+                <button type="submit" class="btn btn-primary">{% if bank %}Сохранить{% else %}Создать{% endif %}</button>
+                <a href="{% url 'frontend:bank_list' %}" class="btn btn-outline-secondary">Отмена</a>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const id = document.getElementById('bankId').value;
+    
+    document.getElementById('bankForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const data = {
+            name: document.getElementById('name').value,
+            bik: document.getElementById('bik').value,
+            correspondent_account: document.getElementById('correspondent_account').value,
+            swift: document.getElementById('swift').value,
+            inn: document.getElementById('inn').value,
+            kpp: document.getElementById('kpp').value,
+            phone: document.getElementById('phone').value,
+            email: document.getElementById('email').value,
+            website: document.getElementById('website').value,
+            legal_address: document.getElementById('legal_address').value
+        };
+        
+        const url = id ? `/api/banks/${id}/` : '/api/banks/';
+        const method = id ? 'PATCH' : 'POST';
+        
+        try {
+            const response = await fetch(url, {method, headers:{'Content-Type':'application/json','X-CSRFToken':csrf}, body:JSON.stringify(data)});
+            if(response.ok) window.location.href = '/banks/';
+            else alert('Ошибка');
+        } catch(e) { alert('Ошибка'); }
+    });
+</script>
+{% endblock %}

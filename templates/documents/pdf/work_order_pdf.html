@@ -42,7 +42,15 @@
         <h3>Задача:</h3>
         <p><strong>№{{ workorder.task.id }} — {{ workorder.task.name }}</strong></p>
         <p>{{ workorder.task.description|linebreaks }}</p>
-        <p><strong>Ответственный:</strong> {{ workorder.responsible.get_full_name|default:workorder.task.responsible.get_full_name|default:"Не назначен" }}</p>
+        <p><strong>Ответственный:</strong>
+            {% if workorder.responsible %}
+                {{ workorder.responsible.get_full_name }}
+            {% elif workorder.task.responsible %}
+                {{ workorder.task.responsible.get_full_name }}
+            {% else %}
+                Не назначен
+            {% endif %}
+        </p>
     </div>
 
     <h3>Необходимые материалы:</h3>

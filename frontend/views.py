@@ -270,12 +270,37 @@ def task_create(request):
 
 @login_required
 def inventory_list(request):
-    """Список инвентаря"""
+    """Список инвентаря с выбором склада"""
+    user = request.user
     items = InventoryItem.objects.all().select_related(
         'manufacturer', 'department', 'responsible', 'category'
     )
 
-    # Фильтры
+    # Определяем доступные склады
+    if user.is_staff or user.is_superuser:
+        available_departments = Department.objects.all()
+    else:
+        available_departments = Department.objects.filter(
+            id=user.department_id) if user.department else Department.objects.none()
+
+    # 🔥 Фильтр по складу
+    department_filter = request.GET.get('department', '')
+
+    if department_filter == 'all':
+        # Показываем все склады
+        pass
+    elif department_filter:
+        # Показываем конкретный склад
+        if available_departments.filter(id=department_filter).exists():
+            items = items.filter(department_id=department_filter)
+    else:
+        # По умолчанию — первый доступный склад
+        first_dept = available_departments.first()
+        if first_dept:
+            items = items.filter(department=first_dept)
+            department_filter = str(first_dept.id)
+
+    # Остальные фильтры
     status_filter = request.GET.get('status', '')
     category_filter = request.GET.get('category', '')
     search_query = request.GET.get('search', '')
@@ -322,8 +347,10 @@ def inventory_list(request):
         'items': items_page,
         'stats': stats,
         'categories': categories,
+        'departments': available_departments,  # 🔥 для переключателя
         'status_choices': InventoryItem.STATUS_CHOICES,
         'current_filters': {
+            'department': department_filter,
             'status': status_filter,
             'category': category_filter,
             'my': my_only,
@@ -412,7 +439,10 @@ def warehouse_list(request):
     # Фильтр по отделу (складу)
     department_filter = request.GET.get('department', '')
 
-    if department_filter:
+    if department_filter == 'all':
+        # Показываем все склады — не фильтруем
+        pass
+    elif department_filter:
         # Проверяем, что пользователь имеет доступ к выбранному складу
         if available_departments.filter(id=department_filter).exists():
             items = items.filter(department_id=department_filter)
@@ -628,8 +658,10 @@ def counterparty_detail(request, pk):
 @login_required
 def counterparty_create(request):
     """Создание контрагента"""
+    banks = Bank.objects.all()
     context = {
         'type_choices': Counterparty.TYPE_CHOICES,
+        'banks': banks,
     }
     return render(request, 'frontend/counterparty_form.html', context)
 
@@ -638,12 +670,12 @@ def counterparty_create(request):
 def counterparty_edit(request, pk):
     """Редактирование контрагента"""
     counterparty = get_object_or_404(Counterparty, pk=pk)
-
+    banks = Bank.objects.all()
     context = {
         'counterparty': counterparty,
         'type_choices': Counterparty.TYPE_CHOICES,
+        'banks': banks,
     }
-
     return render(request, 'frontend/counterparty_form.html', context)
 
 
@@ -657,6 +689,8 @@ def user_list(request):
     position_filter = request.GET.get('position', '')
     search_query = request.GET.get('search', '')
     active_only = request.GET.get('active', '')
+    staff_only = request.GET.get('staff', '')
+    transport_only = request.GET.get('transport', '')
 
     if department_filter:
         users = users.filter(department_id=department_filter)
@@ -673,6 +707,11 @@ def user_list(request):
             Q(email__icontains=search_query) |
             Q(phone__icontains=search_query)
         )
+    if staff_only == 'true':
+        users = users.filter(is_staff=True)
+    if transport_only == 'true':
+        users = users.filter(has_transport=True)
+
 
     # Статистика
     stats = {
@@ -789,16 +828,18 @@ def department_detail(request, pk):
 def department_create(request):
     parents = Department.objects.all()
     users = User.objects.filter(is_active=True)
-    context = {'parents': parents, 'users': users}
+    banks = Bank.objects.all()  # 🔥 добавили
+    context = {'parents': parents, 'users': users, 'banks': banks}
     return render(request, 'frontend/department_form.html', context)
 
 
 @login_required
 def department_edit(request, pk):
     department = get_object_or_404(Department, pk=pk)
-    parents = Department.objects.exclude(pk=pk)  # исключаем сам себя
+    parents = Department.objects.exclude(pk=pk)
     users = User.objects.filter(is_active=True)
-    context = {'department': department, 'parents': parents, 'users': users}
+    banks = Bank.objects.all()  # 🔥 добавили
+    context = {'department': department, 'parents': parents, 'users': users, 'banks': banks}
     return render(request, 'frontend/department_form.html', context)
 
 
@@ -2009,3 +2050,190 @@ def warehouse_turnover_report_pdf(request):
     response.write(result)
 
     return response
+
+
+@login_required
+def user_create(request):
+    """Создание пользователя (только для админа)"""
+    if not request.user.is_staff and not request.user.is_superuser:
+        messages.error(request, 'Недостаточно прав')
+        return redirect('frontend:users_list')
+
+    from positions.models import Position
+    from departments.models import Department
+
+    context = {
+        'positions': Position.objects.all(),
+        'departments': Department.objects.all(),
+    }
+    return render(request, 'frontend/user_form.html', context)
+
+
+@login_required
+def user_edit(request, pk):
+    """Редактирование пользователя (только для админа)"""
+    if not request.user.is_staff and not request.user.is_superuser:
+        messages.error(request, 'Недостаточно прав')
+        return redirect('frontend:users_list')
+
+    user = get_object_or_404(User, pk=pk)
+    from positions.models import Position
+    from departments.models import Department
+
+    context = {
+        'employee': user,
+        'positions': Position.objects.all(),
+        'departments': Department.objects.all(),
+    }
+    return render(request, 'frontend/user_form.html', context)
+
+
+@login_required
+def profile_edit(request):
+    """Редактирование своего профиля (для всех пользователей)"""
+    from positions.models import Position
+    from departments.models import Department
+
+    context = {
+        'employee': request.user,
+        'positions': Position.objects.all(),
+        'departments': Department.objects.all(),
+        'is_self': True,  # флаг — это редактирование своего профиля
+    }
+    return render(request, 'frontend/user_form.html', context)
+
+
+@login_required
+def about(request):
+    """Страница 'О программе'"""
+    from django.db.models import Count
+
+    # Немного статистики для красоты
+    stats = {
+        'tasks_count': Task.objects.count(),
+        'warehouse_count': WarehouseItem.objects.count(),
+        'inventory_count': InventoryItem.objects.count(),
+        'users_count': User.objects.count(),
+        'documents_count': (
+                WarehouseReceipt.objects.count() +
+                WarehouseExpense.objects.count() +
+                Invoice.objects.count()
+        ),
+    }
+
+    return render(request, 'frontend/about.html', {'stats': stats})
+
+
+@login_required
+def pending_documents_list(request):
+    """Список всех документов, ожидающих обработки"""
+
+    # Собираем все черновики из разных моделей
+    pending_items = []
+
+    # Приходные накладные
+    for doc in WarehouseReceipt.objects.filter(status='draft').select_related('supplier').order_by('-created_at')[:10]:
+        pending_items.append({
+            'type': 'Приходная накладная',
+            'number': doc.number,
+            'date': doc.created_at,
+            'status': 'Черновик',
+            'link': f'/documents/receipts/{doc.pk}/',
+            'icon': '📥',
+        })
+
+    # Расходные накладные
+    for doc in WarehouseExpense.objects.filter(status='draft').select_related('counterparty').order_by('-created_at')[
+               :10]:
+        pending_items.append({
+            'type': 'Расходная накладная',
+            'number': doc.number,
+            'date': doc.created_at,
+            'status': 'Черновик',
+            'link': f'/documents/expenses/{doc.pk}/',
+            'icon': '📤',
+        })
+
+    # Перемещения
+    for doc in WarehouseTransfer.objects.filter(status='draft').order_by('-created_at')[:10]:
+        pending_items.append({
+            'type': 'Перемещение',
+            'number': doc.number,
+            'date': doc.created_at,
+            'status': 'Черновик',
+            'link': f'/documents/transfers/{doc.pk}/',
+            'icon': '🔄',
+        })
+
+    # Инвентаризации
+    for doc in WarehouseStocktake.objects.filter(status='draft').order_by('-created_at')[:10]:
+        pending_items.append({
+            'type': 'Инвентаризация',
+            'number': doc.number,
+            'date': doc.created_at,
+            'status': 'Черновик',
+            'link': f'/documents/stocktakes/{doc.pk}/',
+            'icon': '📋',
+        })
+
+    # Счета
+    for doc in Invoice.objects.filter(status='draft').select_related('counterparty').order_by('-created_at')[:10]:
+        pending_items.append({
+            'type': 'Счёт',
+            'number': doc.number,
+            'date': doc.created_at,
+            'status': 'Черновик',
+            'link': f'/documents/invoices/{doc.pk}/',
+            'icon': '🧾',
+        })
+
+    # Наряды
+    for doc in WorkOrder.objects.filter(status='draft').select_related('task').order_by('-created_at')[:10]:
+        pending_items.append({
+            'type': 'Наряд',
+            'number': doc.number,
+            'date': doc.created_at,
+            'status': 'Черновик',
+            'link': f'/documents/work-orders/{doc.pk}/',
+            'icon': '📄',
+        })
+
+    # Акты
+    for doc in CompletionAct.objects.filter(status='draft').select_related('task').order_by('-created_at')[:10]:
+        pending_items.append({
+            'type': 'Акт',
+            'number': doc.number,
+            'date': doc.created_at,
+            'status': 'Черновик',
+            'link': f'/documents/completion-acts/{doc.pk}/',
+            'icon': '✅',
+        })
+
+    # Сортируем по дате
+    pending_items.sort(key=lambda x: x['date'], reverse=True)
+    pending_items = pending_items[:50]
+
+    return render(request, 'frontend/pending_documents.html', {
+        'pending_items': pending_items,
+        'total': len(pending_items)
+    })
+
+
+from banks.models import Bank
+
+@login_required
+def bank_list(request):
+    """Список банков"""
+    banks = Bank.objects.all()
+    return render(request, 'frontend/bank_list.html', {'banks': banks})
+
+@login_required
+def bank_create(request):
+    """Создание банка"""
+    return render(request, 'frontend/bank_form.html')
+
+@login_required
+def bank_edit(request, pk):
+    """Редактирование банка"""
+    bank = get_object_or_404(Bank, pk=pk)
+    return render(request, 'frontend/bank_form.html', {'bank': bank})

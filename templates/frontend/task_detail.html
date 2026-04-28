@@ -101,6 +101,7 @@
                                 <th>Списано</th>
                                 <th>Осталось</th>
                                 <th></th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -123,6 +124,11 @@
                                             Списать
                                         </button>
                                     {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="removeMaterial({{ req.pk }}); return false;">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -162,6 +168,11 @@
                                 <td>{{ req.inventory.inventory_number }}</td>
                                 <td>{{ req.quantity }} шт.</td>
                                 <td>{{ req.comment|default:"—" }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="removeInventory({{ req.pk }}); return false;">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -589,6 +600,44 @@
             } else {
                 const error = await response.json();
                 alert('Ошибка: ' + JSON.stringify(error));
+            }
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+
+        async function removeMaterial(requirementId) {
+        if (!confirm('Удалить этот материал из задачи?')) return;
+
+        try {
+            const response = await fetch(`/api/tasks/${taskId}/remove-material/${requirementId}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Ошибка удаления');
+            }
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+
+    async function removeInventory(requirementId) {
+        if (!confirm('Удалить этот инвентарь из задачи?')) return;
+
+        try {
+            const response = await fetch(`/api/tasks/${taskId}/remove-inventory/${requirementId}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Ошибка удаления');
             }
         } catch (error) {
             alert('Ошибка: ' + error.message);

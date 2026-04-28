@@ -1,0 +1,275 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if employee %}Редактирование{% else %}Новый{% endif %} сотрудник | ForWork ERP{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'frontend:users_list' %}">Сотрудники</a></li>
+                    <li class="breadcrumb-item active">{% if employee %}Редактирование{% else %}Новый{% endif %}</li>
+                </ol>
+            </nav>
+            <h2 class="fw-light mt-2">{% if employee %}Редактирование{% else %}Создание{% endif %} сотрудника</h2>
+        </div>
+        <a href="{% url 'frontend:users_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg me-1"></i>Отмена
+        </a>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <form id="userForm">
+                {% csrf_token %}
+                <input type="hidden" id="userId" value="{{ employee.pk|default:'' }}">
+                <input type="hidden" id="imageIds" name="image_ids" value="{% if employee.photo_id %}{{ employee.photo_id }}{% endif %}">
+
+                <h5 class="mb-3">Основная информация</h5>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label">Имя пользователя <span class="text-danger">*</span></label>
+                        <input type="text" id="username" class="form-control" value="{{ employee.username|default:'' }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Пароль {% if not employee %}<span class="text-danger">*</span>{% endif %}</label>
+                        <input type="password" id="password" class="form-control" {% if not employee %}required{% endif %} placeholder="{% if employee %}Оставьте пустым, чтобы не менять{% endif %}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Email</label>
+                        <input type="email" id="email" class="form-control" value="{{ employee.email|default:'' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Фамилия</label>
+                        <input type="text" id="last_name" class="form-control" value="{{ employee.last_name|default:'' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Имя</label>
+                        <input type="text" id="first_name" class="form-control" value="{{ employee.first_name|default:'' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Отчество</label>
+                        <input type="text" id="middle_name" class="form-control" value="{{ employee.middle_name|default:'' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Телефон</label>
+                        <input type="text" id="phone" class="form-control" value="{{ employee.phone|default:'' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Должность</label>
+                        <select id="position" class="form-select">
+                            <option value="">Не назначена</option>
+                            {% for p in positions %}
+                                <option value="{{ p.id }}" {% if employee.position_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Отдел</label>
+                        <select id="department" class="form-select">
+                            <option value="">Не назначен</option>
+                            {% for d in departments %}
+                                <option value="{{ d.id }}" {% if employee.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Мессенджеры</h5>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">Telegram / Max</label>
+                        <input type="text" id="telegram" class="form-control" value="{{ employee.telegram|default:'' }}" placeholder="@username">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">WhatsApp</label>
+                        <input type="text" id="whatsapp" class="form-control" value="{{ employee.whatsapp|default:'' }}">
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Паспортные данные</h5>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label">Серия</label>
+                        <input type="text" id="passport_series" class="form-control" value="{{ employee.passport_series|default:'' }}" maxlength="4">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Номер</label>
+                        <input type="text" id="passport_number" class="form-control" value="{{ employee.passport_number|default:'' }}" maxlength="6">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Дата выдачи</label>
+                        <input type="date" id="passport_issued_date" class="form-control" value="{{ employee.passport_issued_date|date:'Y-m-d'|default:'' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Кем выдан</label>
+                        <input type="text" id="passport_issued_by" class="form-control" value="{{ employee.passport_issued_by|default:'' }}">
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Транспорт</h5>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="form-check mt-2">
+                            <input type="checkbox" id="has_transport" class="form-check-input" {% if employee.has_transport %}checked{% endif %}>
+                            <label class="form-check-label" for="has_transport">Есть транспорт</label>
+                        </div>
+                    </div>
+                    <div class="col-md-9">
+                        <label class="form-label">Описание транспорта</label>
+                        <input type="text" id="transport_description" class="form-control" value="{{ employee.transport_description|default:'' }}" placeholder="Марка, модель, гос. номер">
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Фотография</h5>
+                <div class="mb-4">
+                    <div class="d-flex align-items-center gap-3">
+                        <button type="button" class="btn btn-outline-primary" onclick="uploadPhoto()">
+                            <i class="bi bi-cloud-upload me-1"></i>Загрузить фото
+                        </button>
+                        <span class="text-muted small">Или</span>
+                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="removePhoto()" id="removePhotoBtn" {% if not employee.photo_id %}style="display:none"{% endif %}>
+                            <i class="bi bi-trash"></i> Удалить фото
+                        </button>
+                    </div>
+                    <div id="photoPreview" class="mt-2">
+                        {% if employee.photo and employee.photo.image %}
+                            <img src="{{ employee.photo.image.url }}" class="rounded" style="width: 100px; height: 100px; object-fit: cover;">
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if not is_self %}
+                <h5 class="mb-3">Права доступа</h5>
+                <div class="mb-4">
+                    <div class="form-check">
+                        <input type="checkbox" id="is_staff" class="form-check-input" {% if employee.is_staff %}checked{% endif %}>
+                        <label class="form-check-label" for="is_staff">Администратор (может управлять системой)</label>
+                    </div>
+                </div>
+                {% endif %}
+
+                <hr class="my-4">
+                <button type="submit" class="btn btn-primary">{% if employee %}Сохранить{% else %}Создать{% endif %}</button>
+                <a href="{% url 'frontend:users_list' %}" class="btn btn-outline-secondary">Отмена</a>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const userId = document.getElementById('userId').value;
+
+    // Загрузка фото
+    function uploadPhoto() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+
+        input.onchange = async function() {
+            const file = input.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('title', file.name);
+
+            try {
+                const response = await fetch('/api/gallery/images/', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrf },
+                    body: formData
+                });
+
+                const data = await response.json();
+                document.getElementById('imageIds').value = data.id;
+
+                const preview = document.getElementById('photoPreview');
+                preview.innerHTML = `<img src="${data.image}" class="rounded" style="width: 100px; height: 100px; object-fit: cover;">`;
+
+                document.getElementById('removePhotoBtn').style.display = 'inline-block';
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                alert('Ошибка загрузки фото');
+            }
+        };
+
+        input.click();
+    }
+
+    // Удаление фото
+    function removePhoto() {
+        document.getElementById('imageIds').value = '';
+        document.getElementById('photoPreview').innerHTML = '';
+        document.getElementById('removePhotoBtn').style.display = 'none';
+    }
+
+    // Сохранение формы
+    document.getElementById('userForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Сохранение...';
+
+        const data = {
+            username: document.getElementById('username').value,
+            email: document.getElementById('email').value,
+            last_name: document.getElementById('last_name').value,
+            first_name: document.getElementById('first_name').value,
+            middle_name: document.getElementById('middle_name').value,
+            phone: document.getElementById('phone').value,
+            telegram: document.getElementById('telegram').value,
+            whatsapp: document.getElementById('whatsapp').value,
+            passport_series: document.getElementById('passport_series').value,
+            passport_number: document.getElementById('passport_number').value,
+            passport_issued_date: document.getElementById('passport_issued_date').value || null,
+            passport_issued_by: document.getElementById('passport_issued_by').value,
+            position_id: document.getElementById('position').value || null,
+            department_id: document.getElementById('department').value || null,
+            has_transport: document.getElementById('has_transport').checked,
+            transport_description: document.getElementById('transport_description').value,
+            is_staff: document.getElementById('is_staff').checked,
+        };
+
+        const password = document.getElementById('password').value;
+        if (password) {
+            data.password = password;
+        }
+
+        const photoId = document.getElementById('imageIds').value;
+        if (photoId) {
+            data.photo_id = parseInt(photoId);
+        } else {
+            data.photo_id = null;
+        }
+
+        const url = userId ? `/api/users/${userId}/` : '/api/users/';
+        const method = userId ? 'PATCH' : 'POST';
+
+        try {
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                window.location.href = '/users/';
+            } else {
+                const error = await response.json();
+                alert('Ошибка: ' + JSON.stringify(error));
+            }
+        } catch(e) {
+            alert('Ошибка сохранения');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+</script>
+{% endblock %}

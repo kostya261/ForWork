@@ -61,6 +61,7 @@
                 <div class="col-md-3">
                     <label class="form-label">Склад</label>
                     <select name="department" class="form-select" onchange="this.form.submit()">
+                        <option value="all" {% if current_filters.department == 'all' %}selected{% endif %}>Все склады</option>
                         {% for d in departments %}
                             <option value="{{ d.id }}" {% if current_filters.department == d.id|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>
                         {% endfor %}
